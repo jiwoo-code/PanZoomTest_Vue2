@@ -1,0 +1,86 @@
+1. Flowchart에서 이동 좌표와 스케일값 구하기 (flowchart.vue)
+
+// flowchart.vue 내에서 panzoom 인스턴스를 통해 현재 transform 얻기
+methods: {
+  getFlowchartPanZoomState() {
+    const transform = this.panzoomInstance.getTransform(); // panzoom instance
+    return {
+      x: transform.x, // 이동한 x 좌표
+      y: transform.y,  // 이동된 y 좌표
+      scale: transform.scale // 현재 확대/축소 스케일 값
+    };
+}
+
+2. minimap에서 전달받은 값으로 사각형 박스 위치와 크기 계산 (navigationView.vue)
+
+// navigationView.vue
+methods: {
+  updateViewportRect(flowchartTransform) {
+    const { x, y, scale } = flowchartTransform; // flowchart에서 전달받은 값
+
+    const fcWidth = this.flowchartNodeBounds.width;
+    const fcHeight = this.flowchartNodeBounds.height;
+
+    const mmWidth = this.minimapNodeBounds.width;
+    const mmHeight = this.minimapNodeBounds.height;
+
+    // 미니맵 축소 비율 계산
+    const scaleRatioX = mmWidth / fcWidth;
+    const scaleRatioY = mmHeight / fcHeight;
+
+    // flowchartContainer의 크기 가져오기
+    const containerWidth = this.flowchartContainer.clientWidth;
+    const containerHeight = this.flowchartContainer.clientHeight;
+
+    // 미니맵에서 사각형 박스의 위치 및 크기 계산
+    const minimapRectX = (-translateX / scale) * scaleRatioX + this.minimapNodeBounds.left;
+    const minimapRectY = (-translateY / scale) * scaleRatioY + this.minimapNodeBounds.top;
+    const minimapRectWidth = (containerWidth / scale) * scaleRatioX;
+    const minimapRectHeight = (containerHeight / scale) * scaleRatioY;
+
+    // 기존 값과 비교하여 변경된 값만 업데이트
+    if (
+      this.viewportRect.x !== minimapRectX ||
+      this.minimapRect.y !== minimapRectY ||
+      this.minimapRect.width !== minimapRectWidth ||
+      this.minimapRect.height !== minimapRectHeight
+    ) {
+      this.minimapRect = {
+        x: minimapRectX,
+        y: minimapRectY,
+        width: minimapRectWidth,
+        height: minimapRectHeight
+      };
+    }
+}
+
+3. 미니맵 클릭 시 클릭 위치 좌표 구하기 (navigationView.vue)
+
+// navigationView.vue
+methods: {
+  onMinimapClick(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    
+    // 클릭한 위치의 좌표를 미니맵 컨테이너 기준으로 계산합니다.
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+
+    return { x: clickX, y: clickY };
+  }
+
+4. 미니맵 클릭 좌표를 Flowchart의 대응하는 좌표로 변환 (flowchart.vue)
+
+// flowchart.vue 내부 메서드로 추가할 수 있는 코드 예시:
+getFlowchartCoordsFromMinimapClick(minimapClickCoords, flowchartNodeBounds, minimapNodeBounds) {
+
+  // 비율 계산 (flowchart와 미니맵 간 비율)
+  const ratioX = flowchartNodeBounds.width / minimapNodeBounds.width;
+  const ratioY = flowchartNodeBounds.height / minimapNodeBounds.height;
+
+  // FlowChart 상의 실제 대응 좌표 계산
+  const targetFlowChartX = (minimapClickCoords.x - minimapNodeBounds.left) * ratioX;
+  const targetFlowChartY = (minimapClickCoords.y - minimapNodeBounds.top) * ratioY;
+
+  return { x: targetFlowChartX, y: targetFlowChartY };
+}
+
