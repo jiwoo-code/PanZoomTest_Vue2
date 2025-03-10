@@ -1,0 +1,64 @@
+methods: {
+  updateMinimapViewportRect(flowchartTransform) {
+    const { x, y, scale } = flowchartTransform;
+
+    const fcWidth = this.flowchartNodeBounds.width;
+    const fcHeight = this.flowchartNodeBounds.height;
+
+    const mmWidth = this.minimapNodeBounds.width;
+    const mmHeight = this.minimapNodeBounds.height;
+
+    // 축별 비율 계산 (가로/세로 독립적)
+    const ratioX = mmWidth / fcWidth;
+    const ratioY = mmHeight / fcHeight;
+
+    // 현재 보이는 영역 크기(flowchart 기준)
+    const visibleWidth = this.flowchartContainer.clientWidth / scale;
+    const visibleHeight = this.flowchartContainer.clientHeight / scale;
+
+    // 미니맵 사각형 박스 위치 및 크기 계산
+    let viewportX = (-x / scale) * ratioX + this.minimapNodeBounds.left;
+    let viewportY = (-y / scale) * ratioY + this.minimapNodeBounds.top;
+    let viewportWidth = visibleWidth * ratioX;
+    let viewportHeight = visibleHeight * ratioY;
+
+    // 🔥 여기서부터 추가된 제한 로직 🔥
+    // minimapNodeBounds를 벗어나지 않도록 제한
+    const minX = this.minimapNodeBounds.left;
+    const minY = this.minimapNodeBounds.top;
+    const maxX = this.minimapNodeBounds.left + mmWidth - viewportWidth;
+    const maxY = this.minimapNodeBounds.top + mmHeight - viewportHeight;
+
+    // viewportRect가 minimapNodeBounds 내에서만 움직이도록 보정
+    if (viewportWidth >= mmWidth) {
+      // viewport가 노드 영역보다 더 클 경우 좌우로 고정
+      viewportX = minX;
+      viewportWidth = mmWidth;
+    } else {
+      viewportX = Math.max(minX, Math.min(maxX, viewportX));
+    }
+
+    if (viewportHeight >= mmHeight) {
+      // viewport가 노드 영역보다 더 클 경우 상하로 고정
+      viewportY = minY;
+      viewportHeight = mmHeight;
+    } else {
+      viewportY = Math.max(minY, Math.min(maxY, viewportY));
+    }
+    
+    // 기존 값과 비교하여 변경된 값만 업데이트
+    if (
+      this.viewportRect.x !== viewportX ||
+      this.viewportRect.y !== viewportY ||
+      this.viewportRect.width !== viewportWidth ||
+      this.viewportRect.height !== viewportHeight
+    ) {
+      this.viewportRect = {
+        x: viewportX,
+        y: viewportY,
+        width: viewportWidth,
+        height: viewportHeight
+      };
+    }
+  }
+}
