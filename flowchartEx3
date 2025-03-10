@@ -16,22 +16,25 @@ methods: {
     const visibleWidth = this.flowchartContainer.clientWidth / scale;
     const visibleHeight = this.flowchartContainer.clientHeight / scale;
 
-    // 미니맵 사각형 박스 위치 및 크기 계산
-    let viewportX = (-x / scale) * ratioX + this.minimapNodeBounds.left;
-    let viewportY = (-y / scale) * ratioY + this.minimapNodeBounds.top;
+    // 🔥 변경된 부분: 화면 중앙 좌표를 기준으로 계산 🔥
+    // 현재 보이는 영역의 중앙 좌표 (flowchart 기준)
+    const centerX = (-x / scale) + visibleWidth / 2;
+    const centerY = (-y / scale) + visibleHeight / 2;
+
+    // 미니맵에서 viewportRect 위치 계산 (중앙 기준)
     let viewportWidth = visibleWidth * ratioX;
     let viewportHeight = visibleHeight * ratioY;
 
-    // 🔥 여기서부터 추가된 제한 로직 🔥
-    // minimapNodeBounds를 벗어나지 않도록 제한
+    let viewportX = (centerX * ratioX + this.minimapNodeBounds.left) - viewportWidth / 2;
+    let viewportY = (centerY * ratioY + this.minimapNodeBounds.top) - viewportHeight / 2;
+
+    // 🔥 제한 로직 유지: minimapNodeBounds 영역 내로 제한 🔥
     const minX = this.minimapNodeBounds.left;
     const minY = this.minimapNodeBounds.top;
     const maxX = this.minimapNodeBounds.left + mmWidth - viewportWidth;
     const maxY = this.minimapNodeBounds.top + mmHeight - viewportHeight;
 
-    // viewportRect가 minimapNodeBounds 내에서만 움직이도록 보정
     if (viewportWidth >= mmWidth) {
-      // viewport가 노드 영역보다 더 클 경우 좌우로 고정
       viewportX = minX;
       viewportWidth = mmWidth;
     } else {
@@ -39,13 +42,12 @@ methods: {
     }
 
     if (viewportHeight >= mmHeight) {
-      // viewport가 노드 영역보다 더 클 경우 상하로 고정
       viewportY = minY;
       viewportHeight = mmHeight;
     } else {
       viewportY = Math.max(minY, Math.min(maxY, viewportY));
     }
-    
+
     // 기존 값과 비교하여 변경된 값만 업데이트
     if (
       this.viewportRect.x !== viewportX ||
