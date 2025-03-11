@@ -61,3 +61,61 @@ function getEligibleToNodes(nodes, links, selectedNodeId) {
     return true;
   });
 }
+
+
+
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+function getEligibleNodes(nodes, links, selectedNodeId) {
+  const connectedNodeIds = new Set(links
+    .filter(link => link.from === selectedNodeId || link.to === selectedNodeId)
+    .map(link => link.from === selectedNodeId ? link.to : link.from));
+
+  const fromLinkCounts = links.reduce((counts, link) => {
+    counts[link.from] = (counts[link.from] || 0) + 1;
+    return counts;
+  }, {});
+
+  const typeConditions = {
+    'branch': node => (fromLinkCounts[node.id] || 0) <= 1,
+    'loss': node => !(fromLinkCounts[node.id] || 0),
+    'leaf': () => true
+  };
+
+  return nodes.reduce((eligible, node) => {
+    if (!connectedNodeIds.has(node.id) && node.id !== selectedNodeId && typeConditions[node.type](node)) {
+      eligible.push(node);
+    }
+    return eligible;
+  }, []);
+}
+
+
+
+function getEligibleToNodes(nodes, links, selectedNodeId) {
+  const connectedNodeIds = new Set(links
+    .filter(link => link.from === selectedNodeId || link.to === selectedNodeId)
+    .map(link => link.from === selectedNodeId ? link.to : link.from));
+
+  const toLinkCounts = links.reduce((counts, link) => {
+    counts[link.to] = (counts[link.to] || 0) + 1;
+    return counts;
+  }, {});
+
+  const typeConditions = {
+    'branch': () => true,
+    'loss': node => (toLinkCounts[node.id] || 0) <= 1,
+    'leaf': () => false
+  };
+
+  return nodes.reduce((eligible, node) => {
+    if (!connectedNodeIds.has(node.id) && node.id !== selectedNodeId && typeConditions[node.type](node)) {
+      eligible.push(node);
+    }
+    return eligible;
+  }, []);
+}
