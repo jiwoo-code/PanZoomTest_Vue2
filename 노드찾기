@@ -1,0 +1,41 @@
+function getEligibleNodes(nodes, links, selectedNodeId) {
+  const connectedNodeIds = links
+    .filter(link => link.from === selectedNodeId || link.to === selectedNodeId)
+    .map(link => (link.from === selectedNodeId ? link.to : link.from));
+
+  const visited = new Set();
+
+  return nodes.filter(node => {
+    if (visited.has(node.id)) return false; // 이미 방문한 노드 제외
+    visited.add(node.id); // 방문한 노드 기록
+
+    const fromLinkCount = links.filter(link => link.from === node.id).length;
+
+    if (node.type === 'branch' && fromLinkCount > 1) return false;
+    if (node.type === 'loss' && fromLinkCount > 0) return false;
+
+    return true;
+  });
+}
+
+
+
+function getEligibleToNodes(nodes, links, selectedNodeId) {
+  const connectedNodeIds = links
+    .filter(link => link.from === selectedNodeId || link.to === selectedNodeId)
+    .map(link => (link.from === selectedNodeId ? link.to : link.from));
+
+  const visited = new Set();
+
+  return nodes.filter(node => {
+    if (visited.has(node.id)) return false; // 이미 방문한 노드 제외
+    visited.add(node.id); // 방문한 노드 기록
+
+    const toLinkCount = links.filter(link => link.to === node.id).length;
+
+    if (node.type === 'leaf') return false; // leaf는 연결 불가
+    if (node.type === 'loss' && toLinkCount > 1) return false;
+
+    return true;
+  });
+}
