@@ -142,3 +142,49 @@ function getEligibleToNodes(nodes, links, selectedNodeId) {
   );
 }
 
+
+
+
+
+
+
+
+
+// 선택된 노드의 모든 자식 노드를 찾는 재귀 함수
+function findAllChildren(nodeId, links) {
+  const visited = new Set();
+
+  function traverse(currentNodeId) {
+    visited.add(currentNodeId);
+    links.forEach(link => {
+      if (link.from === currentNodeId && !visited.has(link.to)) {
+        traverse(link.to);
+      }
+    });
+  }
+
+  traverse(nodeId);
+  return visited;
+}
+
+// getEligibleNodes 함수
+function getEligibleNodes(nodes, links, selectedNodeId) {
+  const excludedNodeIds = findAllChildren(selectedNodeId, links); // 선택된 노드와 모든 자식 노드의 ID
+
+  const fromLinkCounts = links.reduce((counts, link) => {
+    counts[link.from] = (counts[link.from] || 0) + 1;
+    return counts;
+  }, {});
+
+  const typeConditions = {
+    branch: node => (fromLinkCounts[node.id] || 0) <= 1,
+    loss: node => !(fromLinkCounts[node.id] || 0),
+    leaf: () => true
+  };
+
+  return nodes.filter(node => 
+    !excludedNodeIds.has(node.id) &&
+    node.id !== selectedNodeId &&
+    typeConditions[node.type]?.(node)
+  );
+}
