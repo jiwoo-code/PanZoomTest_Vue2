@@ -1,22 +1,44 @@
 function getEligibleNodes(nodes, links, selectedNodeId) {
+  // 현재 선택된 노드와 연결된 노드의 ID를 구합니다.
   const connectedNodeIds = links
     .filter(link => link.from === selectedNodeId || link.to === selectedNodeId)
     .map(link => (link.from === selectedNodeId ? link.to : link.from));
 
-  const visited = new Set();
+  // 각 노드의 from 링크 수를 계산합니다.
+  const fromLinkCounts = links.reduce((counts, link) => {
+    counts[link.from] = (counts[link.from] || 0) + 1;
+    return counts;
+  }, {});
 
+  const visited = new Set(); // 순환 방지를 위한 방문 기록
+
+  // 조건에 맞는 노드를 필터링합니다.
   return nodes.filter(node => {
     if (visited.has(node.id)) return false; // 이미 방문한 노드 제외
-    visited.add(node.id); // 방문한 노드 기록
+    visited.add(node.id); // 방문 기록
 
-    const fromLinkCount = links.filter(link => link.from === node.id).length;
+    // 현재 선택된 노드와 연결된 노드는 제외합니다.
+    if (node.id === selectedNodeId || connectedNodeIds.includes(node.id)) {
+      return false;
+    }
 
-    if (node.type === 'branch' && fromLinkCount > 1) return false;
-    if (node.type === 'loss' && fromLinkCount > 0) return false;
+    const fromCount = fromLinkCounts[node.id] || 0;
+
+    // branch 타입 노드는 from 링크가 1개 이하여야 합니다.
+    if (node.type === 'branch' && fromCount > 1) {
+      return false;
+    }
+
+    // loss 타입 노드는 from 링크가 0개여야 합니다.
+    if (node.type === 'loss' && fromCount > 0) {
+      return false;
+    }
 
     return true;
   });
 }
+
+
 
 
 
