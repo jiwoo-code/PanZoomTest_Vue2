@@ -70,3 +70,75 @@ function getEligibleToNodes(nodes, links, selectedNodeId) {
     return eligible;
   }, []);
 }
+
+ㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+
+function getEligibleNodes(nodes, links, selectedNodeId) {
+  // 선택된 노드의 모든 자식 노드를 찾는 함수
+  function findAllChildren(nodeId, visited = new Set()) {
+    visited.add(nodeId);
+    links.forEach(link => {
+      if (link.from === nodeId && !visited.has(link.to)) {
+        findAllChildren(link.to, visited);
+      }
+    });
+    return visited;
+  }
+
+  // 선택된 노드와 그 모든 자식 노드의 ID를 Set으로 저장
+  const excludedNodeIds = findAllChildren(selectedNodeId);
+
+  const fromLinkCounts = links.reduce((counts, link) => {
+    counts[link.from] = (counts[link.from] || 0) + 1;
+    return counts;
+  }, {});
+
+  const typeConditions = {
+    branch: node => (fromLinkCounts[node.id] || 0) <= 1,
+    loss: node => !(fromLinkCounts[node.id] || 0),
+    leaf: () => true
+  };
+
+  return nodes.filter(node => 
+    !excludedNodeIds.has(node.id) &&
+    node.id !== selectedNodeId &&
+    typeConditions[node.type]?.(node)
+  );
+}
+
+
+
+function getEligibleToNodes(nodes, links, selectedNodeId) {
+  function findAllChildren(nodeId, visited = new Set()) {
+    visited.add(nodeId);
+    links.forEach(link => {
+      if (link.from === nodeId && !visited.has(link.to)) {
+        findAllChildren(link.to, visited);
+      }
+    });
+    return visited;
+  }
+
+  const excludedNodeIds = findAllChildren(selectedNodeId);
+
+  const toLinkCounts = links.reduce((counts, link) => {
+    counts[link.to] = (counts[link.to] || 0) + 1;
+    return counts;
+  }, {});
+
+  const typeConditions = {
+    branch: () => true,
+    loss: node => (toLinkCounts[node.id] || 0) <= 1,
+    leaf: () => false
+  };
+
+  return nodes.filter(node => 
+    !excludedNodeIds.has(node.id) &&
+    node.id !== selectedNodeId &&
+    typeConditions[node.type]?.(node)
+  );
+}
+
