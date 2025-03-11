@@ -71,24 +71,32 @@ function getEligibleToNodes(nodes, links, selectedNodeId) {
 ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 
 function getEligibleNodes(nodes, links, selectedNodeId) {
+  // 선택된 노드와 연결된 노드의 ID를 Set으로 저장 (중복 제거 및 빠른 검색 가능)
   const connectedNodeIds = new Set(links
     .filter(link => link.from === selectedNodeId || link.to === selectedNodeId)
     .map(link => link.from === selectedNodeId ? link.to : link.from));
 
+  // 각 노드의 from 링크 수를 계산하여 객체로 저장
   const fromLinkCounts = links.reduce((counts, link) => {
-    counts[link.from] = (counts[link.from] || 0) + 1;
+    counts[link.from] = (counts[link.from] || 0) + 1; // from 값이 없으면 0으로 초기화 후 증가
     return counts;
   }, {});
 
+  // 노드 타입별 조건 정의 (branch, loss, leaf)
   const typeConditions = {
-    'branch': node => (fromLinkCounts[node.id] || 0) <= 1,
-    'loss': node => !(fromLinkCounts[node.id] || 0),
-    'leaf': () => true
+    'branch': node => (fromLinkCounts[node.id] || 0) <= 1, // branch는 from 링크가 최대 1개
+    'loss': node => !(fromLinkCounts[node.id] || 0),       // loss는 from 링크가 없어야 함
+    'leaf': () => true                                     // leaf는 특별한 조건 없음
   };
 
+  // 조건을 만족하는 노드를 필터링하여 반환
   return nodes.reduce((eligible, node) => {
-    if (!connectedNodeIds.has(node.id) && node.id !== selectedNodeId && typeConditions[node.type](node)) {
-      eligible.push(node);
+    if (
+      !connectedNodeIds.has(node.id) && // 이미 연결된 노드 제외
+      node.id !== selectedNodeId &&     // 선택된 노드 제외
+      typeConditions[node.type](node)   // 타입별 조건 확인
+    ) {
+      eligible.push(node);              // 조건을 만족하면 결과 배열에 추가
     }
     return eligible;
   }, []);
@@ -97,24 +105,32 @@ function getEligibleNodes(nodes, links, selectedNodeId) {
 
 
 function getEligibleToNodes(nodes, links, selectedNodeId) {
+  // 선택된 노드와 연결된 노드의 ID를 Set으로 저장 (중복 제거 및 빠른 검색 가능)
   const connectedNodeIds = new Set(links
     .filter(link => link.from === selectedNodeId || link.to === selectedNodeId)
     .map(link => link.from === selectedNodeId ? link.to : link.from));
 
+  // 각 노드의 to 링크 수를 계산하여 객체로 저장
   const toLinkCounts = links.reduce((counts, link) => {
-    counts[link.to] = (counts[link.to] || 0) + 1;
+    counts[link.to] = (counts[link.to] || 0) + 1; // to 값이 없으면 0으로 초기화 후 증가
     return counts;
   }, {});
 
+  // 노드 타입별 조건 정의 (branch, loss, leaf)
   const typeConditions = {
-    'branch': () => true,
-    'loss': node => (toLinkCounts[node.id] || 0) <= 1,
-    'leaf': () => false
+    'branch': () => true,                              // branch는 특별한 조건 없음
+    'loss': node => (toLinkCounts[node.id] || 0) <= 1, // loss는 to 링크가 최대 1개
+    'leaf': () => false                                // leaf는 연결 불가능
   };
 
+  // 조건을 만족하는 노드를 필터링하여 반환
   return nodes.reduce((eligible, node) => {
-    if (!connectedNodeIds.has(node.id) && node.id !== selectedNodeId && typeConditions[node.type](node)) {
-      eligible.push(node);
+    if (
+      !connectedNodeIds.has(node.id) && // 이미 연결된 노드 제외
+      node.id !== selectedNodeId &&     // 선택된 노드 제외
+      typeConditions[node.type](node)   // 타입별 조건 확인
+    ) {
+      eligible.push(node);              // 조건을 만족하면 결과 배열에 추가
     }
     return eligible;
   }, []);
