@@ -37,6 +37,51 @@ export default {
 }
 
 
+부모없는 노드 여러 개일 때 한 번에 표시
+
+export default {
+  methods: {
+    isSingleTree(nodes, links) {
+      // 모든 노드 ID 찾기
+      const nodeIds = new Set(nodes.map(node => node.id));
+      
+      // 자식 노드 찾기 (links의 'to' 노드)
+      const childNodes = new Set(links.map(link => link.to));
+      
+      // 루트 노드 찾기 (자식이 아닌 노드)
+      const rootNodes = new Set([...nodeIds].filter(x => !childNodes.has(x)));
+      
+      // 정확히 하나의 루트 노드가 있는지 확인
+      if (rootNodes.size !== 1) {
+        return {
+          isValid: false,
+          message: "루트 노드가 정확히 하나여야 합니다."
+        };
+      }
+      
+      // 부모가 없는 노드들을 찾기
+      const nodesWithoutParent = [...nodeIds].filter(nodeId => 
+        !childNodes.has(nodeId) && !rootNodes.has(nodeId)
+      );
+      
+      // 부모가 없는 노드가 있는지 확인
+      if (nodesWithoutParent.length > 0) {
+        return {
+          isValid: false,
+          message: `다음 노드들에 부모가 없습니다: ${nodesWithoutParent.join(', ')}`
+        };
+      }
+      
+      return {
+        isValid: true,
+        message: "유효한 단일 트리 구조입니다."
+      };
+    }
+  }
+}
+
+
+
 ㅡㅡㅡㅡㅡ
 사용 예제
 
