@@ -248,3 +248,45 @@ export default {
     }
   }
 }
+
+
+
+
+
+ㅡㅡㅡㅡㅡㅡ
+
+
+export default {
+  methods: {
+    getEligibleToNodes(nodes, links, selectedNodeId) {
+      const excludedNodeIds = findAllParents(selectedNodeId, links);
+
+      const toLinkCounts = links.reduce((counts, link) => {
+        counts[link.to] = (counts[link.to] || 0) + 1;
+        return counts;
+      }, {});
+
+      // 선택된 노드 찾기
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+
+      // 선택된 노드의 타입에 따른 조건 정의
+      const typeConditions = {
+        branch: () => {
+          const currentToCount = toLinkCounts[selectedNodeId] || 0;
+          return currentToCount < 2; // branch는 최대 2개의 toNode 허용
+        },
+        loss: () => {
+          const currentToCount = toLinkCounts[selectedNodeId] || 0;
+          return currentToCount === 0; // loss는 toNode가 없어야 함
+        },
+        leaf: () => false // leaf는 항상 false (연결 불가)
+      };
+
+      return nodes.filter(node => 
+        !excludedNodeIds.has(node.id) &&
+        node.id !== selectedNodeId &&
+        typeConditions[selectedNode.type]() // 선택된 노드의 타입에 따른 조건 적용
+      );
+    }
+  }
+}
