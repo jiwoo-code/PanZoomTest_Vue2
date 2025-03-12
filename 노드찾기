@@ -290,3 +290,48 @@ export default {
     }
   }
 }
+
+
+
+
+
+
+ㅡㅡㅡㅡㅡㅡ
+
+
+export default {
+  methods: {
+    getEligibleToNodes(nodes, links, selectedNodeId) {
+      // 선택된 노드와 직접 연결된 노드 찾기
+      const directlyConnectedNodes = new Set(
+        links
+          .filter(link => link.from === selectedNodeId || link.to === selectedNodeId)
+          .map(link => link.from === selectedNodeId ? link.to : link.from)
+      );
+
+      // 선택된 노드의 모든 부모 노드 찾기
+      const parentNodes = findAllParents(selectedNodeId, links);
+
+      // 선택된 노드의 자식 노드 수 계산
+      const childCount = links.filter(link => link.from === selectedNodeId).length;
+
+      // 선택된 노드 찾기
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+
+      // 노드 타입별 조건 정의
+      const typeConditions = {
+        branch: () => childCount <= 1,
+        loss: () => childCount === 0,
+        leaf: () => false
+      };
+
+      return nodes.filter(node => 
+        node.id !== selectedNodeId && // 선택된 노드 제외
+        !directlyConnectedNodes.has(node.id) && // 직접 연결된 노드 제외
+        !parentNodes.has(node.id) && // 부모 노드 제외
+        typeConditions[selectedNode.type]() // 선택된 노드의 타입에 따른 조건 적용
+      );
+    }
+  }
+}
+
