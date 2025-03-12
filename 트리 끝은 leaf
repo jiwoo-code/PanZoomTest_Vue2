@@ -1,0 +1,30 @@
+export default {
+  methods: {
+    isValidLeafStructure(nodes, links) {
+      // 각 노드의 자식 수를 계산
+      const childCounts = links.reduce((acc, link) => {
+        acc[link.from] = (acc[link.from] || 0) + 1;
+        return acc;
+      }, {});
+
+      // 자식이 없는 노드(끝 노드) 찾기
+      const endNodes = nodes.filter(node => !childCounts[node.id]);
+
+      // 조건에 맞지 않는 노드 찾기 (자식이 없지만 leaf가 아닌 노드)
+      const invalidNodes = endNodes.filter(node => node.type !== 'leaf');
+
+      if (invalidNodes.length > 0) {
+        const invalidNodeIds = invalidNodes.map(node => node.id).join(', ');
+        return {
+          isValid: false,
+          message: `다음 노드들이 leaf 타입이 아닙니다: ${invalidNodeIds}`
+        };
+      }
+
+      return {
+        isValid: true,
+        message: "모든 끝 노드가 올바르게 leaf 타입입니다."
+      };
+    }
+  }
+}
