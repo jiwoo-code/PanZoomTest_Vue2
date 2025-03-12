@@ -1,0 +1,54 @@
+export default {
+  methods: {
+    isSingleTree(nodes, links) {
+      // 모든 노드 ID 찾기
+      const nodeIds = new Set(nodes.map(node => node.id));
+      
+      // 자식 노드 찾기 (links의 'to' 노드)
+      const childNodes = new Set(links.map(link => link.to));
+      
+      // 루트 노드 찾기 (자식이 아닌 노드)
+      const rootNodes = new Set([...nodeIds].filter(x => !childNodes.has(x)));
+      
+      // 정확히 하나의 루트 노드가 있는지 확인
+      if (rootNodes.size !== 1) {
+        return {
+          isValid: false,
+          message: "루트 노드가 정확히 하나여야 합니다."
+        };
+      }
+      
+      // 루트 노드를 제외한 모든 노드가 부모를 가지고 있는지 확인
+      for (let nodeId of nodeIds) {
+        if (!childNodes.has(nodeId) && !rootNodes.has(nodeId)) {
+          return {
+            isValid: false,
+            message: `노드 ${nodeId}에 부모가 없습니다.`
+          };
+        }
+      }
+      
+      return {
+        isValid: true,
+        message: "유효한 단일 트리 구조입니다."
+      };
+    }
+  }
+}
+
+
+ㅡㅡㅡㅡㅡ
+사용 예제
+
+// 컴포넌트 내부에서
+methods: {
+  checkTreeStructure() {
+    const result = this.isSingleTree(this.nodes, this.links);
+    if (result.isValid) {
+      console.log(result.message);
+    } else {
+      console.error(result.message);
+    }
+  }
+}
+
