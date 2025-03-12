@@ -188,3 +188,63 @@ function getEligibleNodes(nodes, links, selectedNodeId) {
     typeConditions[node.type]?.(node)
   );
 }
+
+
+
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+// 선택된 노드의 모든 부모 노드를 찾는 함수
+function findAllParents(nodeId, links) {
+  const parents = new Set(); // 부모 노드 ID를 저장할 Set
+
+  function traverse(currentNodeId) {
+    links.forEach(link => {
+      if (link.to === currentNodeId && !parents.has(link.from)) {
+        parents.add(link.from); // 부모 노드 추가
+        traverse(link.from); // 재귀적으로 부모 노드 탐색
+      }
+    });
+  }
+
+  traverse(nodeId); // 선택된 노드부터 시작
+  return parents; // 부모 노드 ID를 포함한 Set 반환
+}
+
+
+
+
+
+export default {
+  methods: {
+    getEligibleToNodes(nodes, links, selectedNodeId) {
+      // 선택된 노드의 모든 부모 노드를 찾음
+      const excludedNodeIds = findAllParents(selectedNodeId, links);
+
+      // 각 노드의 to 링크 수를 계산하여 객체로 저장
+      const toLinkCounts = links.reduce((counts, link) => {
+        counts[link.to] = (counts[link.to] || 0) + 1; // to 값이 없으면 0으로 초기화 후 증가
+        return counts;
+      }, {});
+
+      // 노드 타입별 조건 정의
+      const typeConditions = {
+        branch: () => true,                              // branch는 특별한 조건 없음
+        loss: node => (toLinkCounts[node.id] || 0) <= 1, // loss는 to 링크가 최대 1개여야 함
+        leaf: () => false                                // leaf는 연결 불가능
+      };
+
+      // 조건에 맞는 노드를 필터링하여 반환
+      return nodes.filter(node => 
+        !excludedNodeIds.has(node.id) &&                // 부모 노드는 제외
+        node.id !== selectedNodeId &&                  // 선택된 노드는 제외
+        typeConditions[node.type]?.(node)              // 타입별 조건 확인
+      );
+    }
+  }
+}
