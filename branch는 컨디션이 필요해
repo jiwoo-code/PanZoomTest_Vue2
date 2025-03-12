@@ -1,0 +1,23 @@
+export default {
+  methods: {
+    isValidBranchCondition(nodes) {
+      // branch 타입이면서 condition이 비어있는 노드 찾기
+      const invalidNodes = nodes.filter(node => 
+        node.type === 'branch' && (!node.condition || node.condition.trim() === '')
+      );
+
+      if (invalidNodes.length > 0) {
+        const invalidNodeIds = invalidNodes.map(node => node.id).join(', ');
+        return {
+          isValid: false,
+          message: `다음 branch 노드들의 condition이 비어있습니다: ${invalidNodeIds}`
+        };
+      }
+
+      return {
+        isValid: true,
+        message: "모든 branch 노드의 condition이 올바르게 설정되어 있습니다."
+      };
+    }
+  }
+}
