@@ -156,3 +156,39 @@ methods: {
   }
 }
 
+
+
+
+ㅡㅡㅡㅡㅡ
+
+logic 버전
+
+
+function isSingleTreeLogic(logic) {
+  const nodes = Array.from(logic.values());
+  const rootNodes = nodes.filter(node => !nodes.some(n => n.nextYesNodeId === node.nodeId || n.nextNoNodeId === node.nodeId));
+  const nodesWithoutParent = nodes.filter(node => node !== rootNodes[0] && !nodes.some(n => n.nextYesNodeId === node.nodeId || n.nextNoNodeId === node.nodeId));
+
+  if (rootNodes.length !== 1) {
+    const invalidRoots = rootNodes.filter(node => node.displayLabel !== 'Start').map(node => `${node.nodeId} (${node.displayLabel})`);
+    return {
+      isValid: false,
+      message: invalidRoots.length ? `루트 노드가 여러 개이며, 다음 노드들의 디스플레이 라벨이 'Start'가 아닙니다: ${invalidRoots.join(', ')}` : "루트 노드가 없습니다."
+    };
+  }
+
+  return nodesWithoutParent.length === 0
+    ? { isValid: true, message: "유효한 단일 트리 구조입니다." }
+    : { isValid: false, message: `다음 노드들에 부모가 없습니다: ${nodesWithoutParent.map(n => n.nodeId).join(', ')}` };
+}
+
+function isValidLeafStructureLogic(logic) {
+  const invalidLeaves = Array.from(logic.values())
+    .filter(node => !node.nextYesNodeId && !node.nextNoNodeId && node.type !== 'leaf')
+    .map(node => `${node.nodeId} (타입: ${node.type})`);
+
+  return invalidLeaves.length === 0
+    ? { isValid: true, message: "모든 끝 노드가 올바르게 leaf 타입입니다." }
+    : { isValid: false, message: `다음 노드들이 leaf 타입이 아닙니다: ${invalidLeaves.join(', ')}` };
+}
+
