@@ -28,3 +28,19 @@ export default {
     }
   }
 }
+
+
+
+
+ㅡㅡㅡㅡㅡㅡ
+logic 버젘
+
+function isValidLeafStructureLogic(logic) {
+  const invalidLeaves = Array.from(logic.values())
+    .filter(node => !node.nextYesNodeId && !node.nextNoNodeId && node.type !== 'leaf')
+    .map(node => `${node.nodeId} (타입: ${node.type})`);
+
+  return invalidLeaves.length === 0
+    ? { isValid: true, message: "모든 끝 노드가 올바르게 leaf 타입입니다." }
+    : { isValid: false, message: `다음 노드들이 leaf 타입이 아닙니다: ${invalidLeaves.join(', ')}` };
+}
