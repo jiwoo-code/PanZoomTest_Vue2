@@ -1,4 +1,4 @@
-export default {
+ㅑexport default {
   methods: {
     isValidNodeStructure(nodes, links) {
       // 각 노드의 자식 수를 계산
@@ -40,4 +40,21 @@ export default {
       };
     }
   }
+}
+
+
+ㅡㅡㅡㅡ
+
+logic 버전
+
+function isValidNodeStructureLogic(logic) {
+  const invalidNodes = Array.from(logic.values()).filter(node => {
+    const childCount = [node.nextYesNodeId, node.nextNoNodeId].filter(Boolean).length;
+    const expectedChildCount = { branch: 2, loss: 1, leaf: 0 }[node.type] ?? -1;
+    return childCount !== expectedChildCount;
+  }).map(node => `${node.nodeId} (타입: ${node.type}, 자식 수: ${[node.nextYesNodeId, node.nextNoNodeId].filter(Boolean).length})`);
+
+  return invalidNodes.length === 0
+    ? { isValid: true, message: "모든 노드가 타입에 맞는 올바른 자식 수를 가지고 있습니다." }
+    : { isValid: false, message: `다음 노드들이 타입에 맞는 자식 수를 가지고 있지 않습니다: ${invalidNodes.join(', ')}` };
 }
