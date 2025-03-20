@@ -123,3 +123,32 @@ class Validators {
 }
 
 export default Validators;
+
+
+
+
+
+ㅡㅡㅡㅡ
+
+
+validateAll() {
+  const results = {
+    branchCondition: this.validateBranchCondition(),
+    singleTree: this.validateSingleTree(),
+    nodeChildren: this.validateNodeChildren(),
+    leafNodes: this.validateLeafNodes()
+  };
+
+  const isValid = Object.values(results).every(result => result.isValid);
+  const errors = {};
+
+  if (!isValid) {
+    Object.entries(results).forEach(([key, result]) => {
+      if (!result.isValid) {
+        errors[key] = result.message;
+      }
+    });
+  }
+
+  return { isValid, errors };
+}
