@@ -30,11 +30,10 @@ validateRequiredFields(logic) {
     })
     .map(node => {
       const missingFields = REQUIRED_FIELDS[node.type].filter(field => !node[field]);
-      return `${node.nodeId} (누락된 필드: ${missingFields.join(', ')})`;
+      return `${node.nodeId} (missing fields: ${missingFields.join(', ')})`;
     });
 
   return invalidNodes.length === 0
     ? { isValid: true, message: ValidationMessages.REQUIRED_FIELDS_VALID }
     : { isValid: false, message: ValidationMessages.REQUIRED_FIELDS_INVALID.replace('{0}', invalidNodes.join('; ')) };
 }
-
