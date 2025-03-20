@@ -152,3 +152,45 @@ validateAll() {
 
   return { isValid, errors };
 }
+
+
+
+
+ㅡㅡㅡㅡㅡㅡ
+
+
+
+validateRequiredFields() {
+  const missingFields = {};
+
+  this.logicValues.forEach(node => {
+    const nodeType = node.type;
+    const requiredFields = REQUIRED_FIELDS[nodeType];
+
+    if (!requiredFields) {
+      missingFields[node.id] = [`Unknown node type: ${nodeType}`];
+      return;
+    }
+
+    const missingForNode = requiredFields.filter(field => 
+      node[field] === undefined || node[field] === null || node[field] === ''
+    );
+
+    if (missingForNode.length > 0) {
+      missingFields[node.id] = missingForNode;
+    }
+  });
+
+  if (Object.keys(missingFields).length === 0) {
+    return { isValid: true, message: ValidationMessages.REQUIRED_FIELDS_VALID };
+  }
+
+  const missingFieldsStr = Object.entries(missingFields)
+    .map(([id, fields]) => `${id}: ${fields.join(', ')}`)
+    .join('; ');
+
+  return {
+    isValid: false,
+    message: ValidationMessages.REQUIRED_FIELDS_INVALID.replace('{0}', missingFieldsStr)
+  };
+}
