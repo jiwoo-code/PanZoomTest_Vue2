@@ -17,3 +17,24 @@ export function validateRequiredFields(logic) {
     ? { isValid: true, message: "모든 노드의 필수 필드가 입력되었습니다." }
     : { isValid: false, message: `다음 노드들의 필수 필드가 누락되었습니다: ${invalidNodes.join(', ')}` };
 }
+
+
+ㅡㅡㅡㅡㅡ
+
+
+validateRequiredFields(logic) {
+  const invalidNodes = Array.from(logic.values())
+    .filter(node => {
+      const requiredFields = REQUIRED_FIELDS[node.type] || [];
+      return requiredFields.some(field => !node[field]);
+    })
+    .map(node => {
+      const missingFields = REQUIRED_FIELDS[node.type].filter(field => !node[field]);
+      return `${node.nodeId} (누락된 필드: ${missingFields.join(', ')})`;
+    });
+
+  return invalidNodes.length === 0
+    ? { isValid: true, message: ValidationMessages.REQUIRED_FIELDS_VALID }
+    : { isValid: false, message: ValidationMessages.REQUIRED_FIELDS_INVALID.replace('{0}', invalidNodes.join('; ')) };
+}
+
