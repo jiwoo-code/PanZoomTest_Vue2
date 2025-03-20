@@ -12,3 +12,73 @@ export const ValidationMessages = {
   LEAF_NODES_VALID: "All end nodes are of leaf type.",
   LEAF_NODES_INVALID: "The following end nodes are not of leaf type: ({0})"
 };
+
+
+ㅡㅡㅡㅡㅡㅡ
+
+
+export const ValidationMessages = {
+  /**
+   * 모든 브랜치 노드의 조건이 올바르게 설정되었을 때 표시되는 메시지
+   * @tooltip All branch node conditions are correctly set.
+   * @korean 모든 브런치 노드의 컨디션이 올바르게 설정되었습니다.
+   */
+  BRANCH_CONDITION_VALID: "All branch node conditions are correctly set.",
+
+  /**
+   * 일부 브랜치 노드의 조건이 비어있을 때 표시되는 메시지
+   * @tooltip The following branch nodes have empty conditions: ({0})
+   * @korean 다음 브런치 노드들의 컨디션이 비어있습니다. ({0})
+   */
+  BRANCH_CONDITION_INVALID: "The following branch nodes have empty conditions: ({0})",
+
+  /**
+   * 유효한 단일 트리 구조일 때 표시되는 메시지
+   * @tooltip Valid single tree structure.
+   * @korean 유효한 단일 트리 구조입니다.
+   */
+  SINGLE_TREE_VALID: "Valid single tree structure.",
+
+  /**
+   * 여러 개의 루트 노드가 존재할 때 표시되는 메시지
+   * @tooltip There should be only one root node. Additional root nodes: ({0})
+   * @korean 루트 노드는 하나여야 합니다. 추가적인 루트 노드들: ({0})
+   */
+  SINGLE_TREE_MULTIPLE_ROOTS: "There should be only one root node. Additional root nodes: ({0})",
+
+  /**
+   * 루트 노드가 없을 때 표시되는 메시지
+   * @tooltip No root node found.
+   * @korean 루트 노드가 없습니다.
+   */
+  SINGLE_TREE_NO_ROOT: "No root node found.",
+
+  /**
+   * 모든 노드가 타입에 맞는 올바른 자식 노드를 가지고 있을 때 표시되는 메시지
+   * @tooltip All nodes have the correct number of child nodes for their type.
+   * @korean 모든 노드가 타입에 맞는 올바른 자식 노드를 가지고 있습니다.
+   */
+  NODE_CHILDREN_VALID: "All nodes have the correct number of child nodes for their type.",
+
+  /**
+   * 일부 노드가 타입에 맞지 않는 자식 노드를 가지고 있을 때 표시되는 메시지
+   * @tooltip The following nodes do not have the correct number of child nodes for their type: ({0})
+   * @korean 다음 노드들이 타입에 맞는 자식 노드를 가지고 있지 않습니다: ({0})
+   */
+  NODE_CHILDREN_INVALID: "The following nodes do not have the correct number of child nodes for their type: ({0})",
+
+  /**
+   * 모든 끝 노드가 leaf 타입일 때 표시되는 메시지
+   * @tooltip All end nodes are of leaf type.
+   * @korean 모든 노드 끝이 leaf 타입입니다.
+   */
+  LEAF_NODES_VALID: "All end nodes are of leaf type.",
+
+  /**
+   * 일부 끝 노드가 leaf 타입이 아닐 때 표시되는 메시지
+   * @tooltip The following end nodes are not of leaf type: ({0})
+   * @korean 다음 노드들이 leaf 타입이 아닙니다: ({0})
+   */
+  LEAF_NODES_INVALID: "The following end nodes are not of leaf type: ({0})"
+};
+
