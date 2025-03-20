@@ -1,0 +1,19 @@
+// validators.js
+
+import { REQUIRED_FIELDS, NODE_TYPES } from './nodeDefinitions';
+
+export function validateRequiredFields(logic) {
+  const invalidNodes = Array.from(logic.values())
+    .filter(node => {
+      const requiredFields = REQUIRED_FIELDS[node.type];
+      if (!requiredFields) {
+        return true; // 알 수 없는 노드 타입은 invalid로 처리
+      }
+      return requiredFields.some(field => !node[field]);
+    })
+    .map(node => `${node.id} (타입: ${node.type})`);
+
+  return invalidNodes.length === 0
+    ? { isValid: true, message: "모든 노드의 필수 필드가 입력되었습니다." }
+    : { isValid: false, message: `다음 노드들의 필수 필드가 누락되었습니다: ${invalidNodes.join(', ')}` };
+}
