@@ -1,0 +1,14 @@
+export const ValidationMessages = {
+  BRANCH_CONDITION_VALID: "All branch node conditions are correctly set.",
+  BRANCH_CONDITION_INVALID: "The following branch nodes have empty conditions: ({0})",
+
+  SINGLE_TREE_VALID: "Valid single tree structure.",
+  SINGLE_TREE_MULTIPLE_ROOTS: "There should be only one root node. Additional root nodes: ({0})",
+  SINGLE_TREE_NO_ROOT: "No root node found.",
+
+  NODE_CHILDREN_VALID: "All nodes have the correct number of child nodes for their type.",
+  NODE_CHILDREN_INVALID: "The following nodes do not have the correct number of child nodes for their type: ({0})",
+
+  LEAF_NODES_VALID: "All end nodes are of leaf type.",
+  LEAF_NODES_INVALID: "The following end nodes are not of leaf type: ({0})"
+};
