@@ -38,3 +38,88 @@ export function validateAllFields(values) {
     errors
   };
 }
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+import { ValidationMessages } from './validationMessages';
+
+class Validators {
+  constructor(logicValues) {
+    this.values = logicValues;
+  }
+
+  validateBranchCondition() {
+    // 브랜치 노드의 condition 검증 로직
+    const emptyConditionNodes = []; // 실제 로직에서는 비어있는 노드 ID를 여기에 추가
+    if (emptyConditionNodes.length === 0) {
+      return { isValid: true, message: ValidationMessages.BRANCH_CONDITION_VALID };
+    }
+    return {
+      isValid: false,
+      message: ValidationMessages.BRANCH_CONDITION_INVALID.replace('{0}', emptyConditionNodes.join(', '))
+    };
+  }
+
+  validateSingleTree() {
+    // 싱글트리 검증 로직
+    const rootNodes = []; // 실제 로직에서는 루트 노드를 찾아 여기에 추가
+    if (rootNodes.length === 1) {
+      return { isValid: true, message: ValidationMessages.SINGLE_TREE_VALID };
+    }
+    if (rootNodes.length === 0) {
+      return { isValid: false, message: ValidationMessages.SINGLE_TREE_NO_ROOT };
+    }
+    return {
+      isValid: false,
+      message: ValidationMessages.SINGLE_TREE_MULTIPLE_ROOTS.replace('{0}', rootNodes.slice(1).join(', '))
+    };
+  }
+
+  validateNodeChildren() {
+    // 노드 타입별 자식 노드 개수 검증 로직
+    const invalidNodes = []; // 실제 로직에서는 조건에 맞지 않는 노드 ID를 여기에 추가
+    if (invalidNodes.length === 0) {
+      return { isValid: true, message: ValidationMessages.NODE_CHILDREN_VALID };
+    }
+    return {
+      isValid: false,
+      message: ValidationMessages.NODE_CHILDREN_INVALID.replace('{0}', invalidNodes.join(', '))
+    };
+  }
+
+  validateLeafNodes() {
+    // 노드 끝이 leaf 타입인지 검증 로직
+    const nonLeafEndNodes = []; // 실제 로직에서는 leaf 타입이 아닌 끝 노드 ID를 여기에 추가
+    if (nonLeafEndNodes.length === 0) {
+      return { isValid: true, message: ValidationMessages.LEAF_NODES_VALID };
+    }
+    return {
+      isValid: false,
+      message: ValidationMessages.LEAF_NODES_INVALID.replace('{0}', nonLeafEndNodes.join(', '))
+    };
+  }
+
+  validateAll() {
+    const results = {
+      branchCondition: this.validateBranchCondition(),
+      singleTree: this.validateSingleTree(),
+      nodeChildren: this.validateNodeChildren(),
+      leafNodes: this.validateLeafNodes()
+    };
+
+    const isValid = Object.values(results).every(result => result.isValid);
+    const errors = Object.entries(results)
+      .filter(([_, result]) => !result.isValid)
+      .reduce((acc, [key, result]) => {
+        acc[key] = result.message;
+        return acc;
+      }, {});
+
+    return { isValid, errors };
+  }
+}
+
+export default Validators;
