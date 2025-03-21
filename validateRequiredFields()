@@ -37,3 +37,30 @@ validateRequiredFields(logic) {
     ? { isValid: true, message: ValidationMessages.REQUIRED_FIELDS_VALID }
     : { isValid: false, message: ValidationMessages.REQUIRED_FIELDS_INVALID.replace('{0}', invalidNodes.join('; ')) };
 }
+
+
+
+
+ㅡㅡㅡㅡㅡ
+
+필드 매핑 버전
+
+validateRequiredFields(logic) {
+  const invalidNodes = Array.from(logic.values())
+    .filter(node => {
+      const requiredFields = REQUIRED_FIELDS[node.type] || [];
+      return requiredFields.some(field => {
+        const nodeField = FIELD_NAME_MAPPING[field] || field;
+        return !node[nodeField];
+      });
+    })
+    .map(node => {
+      const missingFields = REQUIRED_FIELDS[node.type].filter(field => {
+        const nodeField = FIELD_NAME_MAPPING[field] || field;
+        return !node[nodeField];
+      });
+      return `${node.nodeId} (missing fields: ${missingFields.join(', ')})`;
+    });
+
+  // 나머지 코드는 그대로 유지
+}
