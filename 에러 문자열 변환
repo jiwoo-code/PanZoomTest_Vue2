@@ -38,3 +38,23 @@ if (!validation.isValid) {
 } else {
   // 모든 검증 통과, 계속 진행
 }
+
+
+
+
+ㅡㅡㅡㅡㅡ
+
+function errorsToString(errors) {
+  return Object.entries(errors)
+    .map(([key, message]) => {
+      const colonIndex = message.indexOf(':');
+      const mainMessage = message.slice(0, colonIndex);
+      const details = message.slice(colonIndex + 1);
+      const formattedDetails = details
+        .split(';')
+        .map(detail => `  ${detail.trim()}`)
+        .join(',\n');
+      return `${key}\n${mainMessage}:\n${formattedDetails}`;
+    })
+    .join('\n\n');
+}
