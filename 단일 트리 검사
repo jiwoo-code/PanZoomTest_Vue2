@@ -1,4 +1,4 @@
-export default {
+ㅑexport default {
   methods: {
     isSingleTree(nodes, links) {
       // 모든 노드 ID 찾기
@@ -219,4 +219,57 @@ function validateAndFindRootNode(nodes) {
 
   return { isValid: true, rootNode, nodesWithoutParent };
 }
+
+
+
+
+ㅡㅡㅡㅡㅡㅡ
+
+
+function validateAndFindRootNode(nodes) {
+  const rootConditions = {
+    nodeId: node => node.nodeId === 1,
+    nextNodes: node => node.nextYesNodeId && !node.nextNoNodeId,
+    category: node => node.nodeCategory === 'start',
+    condition: node => node.nodeCondition === 'True',
+    noParent: node => !nodes.some(n => n.nextYesNodeId === node.nodeId || n.nextNoNodeId === node.nodeId)
+  };
+
+  const potentialRootNode = nodes.find(node => node.nodeId === 1);
+
+  if (!potentialRootNode) {
+    return {
+      isValid: false,
+      message: {
+        en: "The root node is missing.",
+        ko: "루트 노드가 없습니다."
+      }
+    };
+  }
+
+  const rootNode = Object.values(rootConditions).every(condition => condition(potentialRootNode))
+    ? potentialRootNode
+    : null;
+
+  if (!rootNode) {
+    const failedConditions = Object.entries(rootConditions)
+      .filter(([_, condition]) => !condition(potentialRootNode))
+      .map(([key]) => key);
+
+    return {
+      isValid: false,
+      message: {
+        en: `The start node does not satisfy the following conditions: ${failedConditions.join(', ')}.`,
+        ko: `start 노드의 조건을 만족하지 않습니다: ${failedConditions.join(', ')}.`
+      }
+    };
+  }
+
+  const nodesWithoutParent = nodes.filter(node => 
+    node !== rootNode && rootConditions.noParent(node)
+  );
+
+  return { isValid: true, rootNode, nodesWithoutParent };
+}
+
 
