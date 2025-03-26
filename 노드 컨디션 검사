@@ -1,0 +1,53 @@
+function validateNodeCondition(condition) {
+  // 조건을 토큰으로 분리
+  const tokens = condition.match(/(\(|\)|\&|\||\S+)/g) || [];
+  
+  // 기본 operand와 연산자 정의
+  const basicOperands = new Set(['None', 'True', 'False']);
+  const operators = new Set(['>', '<', '<=', '>=', '==', '!=', '&', '|']);
+  
+  // 사용자 정의 operand 파싱
+  const userOperands = [...simpleOperand, ...complexOperand].reduce((acc, curr) => {
+    const [name, type] = curr.split(':');
+    acc[name.trim()] = type.trim();
+    return acc;
+  }, {});
+
+  let stack = 0, expectOperand = true;
+  let lastOperandType = null;
+
+  // 각 토큰을 순회하며 검증
+  return tokens.every((token, index) => {
+    if (token === '(') return stack++, expectOperand = true, true;  // 여는 괄호 처리
+    if (token === ')') return --stack >= 0 && !expectOperand;  // 닫는 괄호 처리
+    if (operators.has(token)) {
+      if (token === '&' || token === '|') {  // 논리 연산자 처리
+        lastOperandType = null;
+        return !expectOperand && (expectOperand = true);
+      }
+      return !expectOperand && (expectOperand = true);  // 비교 연산자 처리
+    }
+    if (expectOperand) {
+      let currentType;
+      // operand 타입 결정
+      if (basicOperands.has(token)) {
+        currentType = token === 'None' ? 'None' : 'bool';
+      } else if (userOperands[token]) {
+        currentType = userOperands[token];
+      } else if (!isNaN(token)) {
+        currentType = Number.isInteger(Number(token)) ? 'int' : 'float';
+      } else {
+        return false;  // 유효하지 않은 operand
+      }
+
+      // operand 타입 일치 검사
+      if (lastOperandType && lastOperandType !== currentType) {
+        return false;  // 타입 불일치
+      }
+      lastOperandType = currentType;
+      expectOperand = false;
+      return true;
+    }
+    return false;  // 예상치 못한 토큰
+  }) && stack === 0 && !expectOperand;  // 최종 검증: 괄호 균형과 완전한 표현식
+}
