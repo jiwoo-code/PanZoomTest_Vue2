@@ -1,12 +1,8 @@
-function validateNodeCondition(condition) {
-  // 조건을 토큰으로 분리
-  const tokens = condition.match(/(\(|\)|\&|\||\S+)/g) || [];
+function validateNodeCondition(nodes) {
   // 유효한 연산자 정의
   const operators = new Set(['>', '<', '<=', '>=', '==', '!=', '&', '|']);
   // 사용자 정의 operand 객체 생성
   const userOperands = [...simpleOperand, ...complexOperand].reduce((acc, {name, type}) => ({...acc, [name]: type}), {});
-  
-  let stack = 0, expectOperand = true, lastType = null;
 
   // 토큰의 타입을 결정하는 헬퍼 함수
   const getType = (token) => {
@@ -16,20 +12,67 @@ function validateNodeCondition(condition) {
     return null;
   };
 
-  // 각 토큰을 순회하며 검증
-  return tokens.every(token => {
-    if (token === '(') return ++stack, expectOperand = true, true;  // 여는 괄호 처리
-    if (token === ')') return --stack >= 0 && !expectOperand;  // 닫는 괄호 처리
-    if (operators.has(token)) {  // 연산자 처리
-      if (['&', '|'].includes(token)) lastType = null;  // 논리 연산자 후 타입 리셋
-      return !expectOperand && (expectOperand = true);
+  // 단일 노드의 condition을 검증하는 내부 함수
+  const validateSingleCondition = (condition, nodeId) => {
+    const tokens = condition.match(/(\(|\)|\&|\||\S+)/g) || [];
+    let stack = 0, expectOperand = true, lastType = null;
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      if (token === '(') {
+        stack++;
+        expectOperand = true;
+      } else if (token === ')') {
+        if (--stack < 0 || expectOperand) {
+          return `Node ${nodeId}: Invalid parenthesis at position ${i}`;
+        }
+      } else if (operators.has(token)) {
+        if (expectOperand) {
+          return `Node ${nodeId}: Unexpected operator '${token}' at position ${i}`;
+        }
+        if (['&', '|'].includes(token)) lastType = null;
+        expectOperand = true;
+      } else if (expectOperand) {
+        const currentType = getType(token);
+        if (!currentType) {
+          return `Node ${nodeId}: Invalid operand '${token}' at position ${i}`;
+        }
+        if (lastType && lastType !== currentType) {
+          return `Node ${nodeId}: Type mismatch: expected ${lastType}, got ${currentType} at position ${i}`;
+        }
+        lastType = currentType;
+        expectOperand = false;
+      } else {
+        return `Node ${nodeId}: Unexpected token '${token}' at position ${i}`;
+      }
     }
-    if (expectOperand) {  // operand 처리
-      const currentType = getType(token);
-      if (!currentType || (lastType && lastType !== currentType)) return false;  // 타입 검증
-      lastType = currentType;
-      return expectOperand = false, true;
+
+    if (stack !== 0) {
+      return `Node ${nodeId}: Unbalanced parentheses`;
     }
-    return false;  // 예상치 못한 토큰
-  }) && stack === 0 && !expectOperand;  // 최종 검증: 괄호 균형과 완전한 표현식
+    if (expectOperand) {
+      return `Node ${nodeId}: Expression ends with an operator`;
+    }
+
+    return null; // 유효한 조건
+  };
+
+  // 모든 노드의 condition 검증
+  const invalidNodes = nodes
+    .map(node => {
+      const error = validateSingleCondition(node.nodeCondition, node.id);
+      return error ? { id: node.id, error } : null;
+    })
+    .filter(result => result !== null);
+
+  // 최종 결과 반환
+  if (invalidNodes.length > 0) {
+    return {
+      isValid: false,
+      message: "Some nodes have invalid conditions",
+      invalidNodes
+    };
+  }
+
+  return { isValid: true, message: "All node conditions are valid" };
 }
