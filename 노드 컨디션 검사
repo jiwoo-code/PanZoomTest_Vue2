@@ -477,3 +477,63 @@ function validateNodeCondition(nodes) {
     ? { isValid: false, message: "Some branch nodes have invalid conditions", invalidNodes } // 일부 branch 노드의 조건이 유효하지 않습니다
     : { isValid: true, message: "All branch node conditions are valid" }; // 모든 branch 노드의 조건이 유효합니다
 }
+
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+이 함수는 모든 operand, operator, 괄호 사이에 공백이 있어야 한다는 조건을 검사합니다:
+
+
+const validateSingleCondition = (condition, nodeId) => {
+  // 토큰화: 공백을 포함하여 모든 문자를 개별 토큰으로 분리
+  const tokens = condition.match(/\S+|\s+/g) || [];
+  let expectOperand = true, lastType = null;
+  let lastNonSpaceToken = null;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+
+    if (token.trim() === '') {
+      // 공백 토큰 처리
+      if (lastNonSpaceToken === null || i === tokens.length - 1) {
+        return `Node ${nodeId}: Invalid spacing at the ${lastNonSpaceToken === null ? 'beginning' : 'end'} of the condition`;
+      }
+      continue;
+    }
+
+    // 비공백 토큰 사이에 공백이 없는 경우 에러
+    if (lastNonSpaceToken !== null && !tokens[i-1].trim() === '') {
+      return `Node ${nodeId}: Missing space between '${lastNonSpaceToken}' and '${token}'`;
+    }
+
+    if (token === '(' || token === ')') {
+      if (token === '(' && !expectOperand) return `Node ${nodeId}: Unexpected '(' at position ${i}`;
+      if (token === ')' && expectOperand) return `Node ${nodeId}: Unexpected ')' at position ${i}`;
+      expectOperand = token === '(';
+    } else if (operators.has(token)) {
+      if (expectOperand && token !== '!') return `Node ${nodeId}: Unexpected operator '${token}' at position ${i}`;
+      expectOperand = token !== '!';
+      if (['&', '|'].includes(token)) lastType = null;
+    } else {
+      const currentType = getType(token);
+      if (currentType === 'bool' && (token === 'True' || token === 'False' || token.startsWith('!'))) {
+        expectOperand = false;
+      } else if (expectOperand) {
+        if (lastType && !isTypeCompatible(lastType, currentType)) 
+          return `Node ${nodeId}: Type mismatch: ${lastType} is not compatible with ${currentType} at position ${i}`;
+        expectOperand = false;
+      } else {
+        return `Node ${nodeId}: Unexpected token '${token}' at position ${i}`;
+      }
+      lastType = currentType;
+    }
+
+    lastNonSpaceToken = token;
+  }
+
+  if (expectOperand) return `Node ${nodeId}: Expression ends with an operator`;
+
+  return null; // 유효한 조건
+};
