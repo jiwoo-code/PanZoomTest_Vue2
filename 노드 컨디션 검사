@@ -216,3 +216,75 @@ function validateNodeCondition(nodes) {
     ? { isValid: false, message: "Some nodes have invalid conditions", invalidNodes } // 일부 노드의 조건이 유효하지 않습니다
     : { isValid: true, message: "All node conditions are valid" }; // 모든 노드의 조건이 유효합니다
 }
+
+
+
+ㅡㅡㅡㅡㅡ
+ 브런치만 검사
+
+function validateNodeCondition(nodes) {
+  const operators = new Set(['>', '<', '<=', '>=', '==', '!=', '&', '|', '!']);
+  const userOperands = [...simpleOperand, ...complexOperand].reduce((acc, {name, type}) => ({...acc, [name]: type}), {});
+
+  // 토큰의 타입 결정
+  const getType = (token) => {
+    if (['True', 'False'].includes(token)) return 'bool';
+    if (token === 'None') return 'None';
+    if (userOperands[token]) return userOperands[token];
+    return !isNaN(token) ? (Number.isInteger(Number(token)) ? 'int' : 'float') : 'string';
+  };
+
+  // 타입 호환성 검사
+  const isTypeCompatible = (type1, type2) => 
+    type1 === type2 || type1 === 'varius' || type2 === 'varius' || 
+    (type1 === 'int' && type2 === 'float') || (type1 === 'float' && type2 === 'int');
+
+  const validateSingleCondition = (condition, nodeId) => {
+    const tokens = condition.match(/(!?[A-Za-z0-9_]+|\(|\)|&|\||\S+)/g) || [];
+    let stack = 0, expectOperand = true, lastType = null;
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      if (token === '(') {
+        stack++; expectOperand = true;
+      } else if (token === ')') {
+        if (--stack < 0 || expectOperand) return `Node ${nodeId}: Invalid parenthesis at position ${i}`; // 노드 ${nodeId}: ${i}번째 위치에 잘못된 괄호
+      } else if (operators.has(token)) {
+        if (expectOperand && token !== '!') return `Node ${nodeId}: Unexpected operator '${token}' at position ${i}`; // 노드 ${nodeId}: ${i}번째 위치에 예상치 못한 연산자 '${token}'
+        expectOperand = token !== '!';
+        if (['&', '|'].includes(token)) lastType = null;
+      } else {
+        const currentType = getType(token.replace(/^!/, '')); // Remove leading '!' for type checking
+        if (currentType === 'bool' && (token === 'True' || token === 'False' || token.startsWith('!'))) {
+          expectOperand = false;
+        } else if (expectOperand) {
+          if (lastType && !isTypeCompatible(lastType, currentType)) 
+            return `Node ${nodeId}: Type mismatch: ${lastType} is not compatible with ${currentType} at position ${i}`; // 노드 ${nodeId}: 타입 불일치: ${i}번째 위치에서 ${lastType}과 ${currentType}이 호환되지 않음
+          expectOperand = false;
+        } else {
+          return `Node ${nodeId}: Unexpected token '${token}' at position ${i}`; // 노드 ${nodeId}: ${i}번째 위치에 예상치 못한 토큰 '${token}'
+        }
+        lastType = currentType;
+      }
+    }
+
+    if (stack !== 0) return `Node ${nodeId}: Unbalanced parentheses`; // 노드 ${nodeId}: 괄호가 균형잡히지 않음
+    if (expectOperand) return `Node ${nodeId}: Expression ends with an operator`; // 노드 ${nodeId}: 표현식이 연산자로 끝남
+
+    return null; // 유효한 조건
+  };
+
+  // 모든 노드의 condition 검증 (branch 타입만)
+  const invalidNodes = nodes
+    .filter(node => node.nodeType === 'branch')
+    .map(node => {
+      const error = validateSingleCondition(node.nodeCondition, node.id);
+      return error ? { id: node.id, error } : null;
+    })
+    .filter(Boolean);
+
+  // 최종 결과 반환
+  return invalidNodes.length > 0
+    ? { isValid: false, message: "Some branch nodes have invalid conditions", invalidNodes } // 일부 branch 노드의 조건이 유효하지 않습니다
+    : { isValid: true, message: "All branch node conditions are valid" }; // 모든 branch 노드의 조건이 유효합니다
+}
