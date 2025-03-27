@@ -483,7 +483,20 @@ function validateNodeCondition(nodes) {
 
 
 ㅡㅡㅡㅡㅡㅡㅡㅡㅡ
-이 함수는 모든 operand, operator, 괄호 사이에 공백이 있어야 한다는 조건을 검사합니다:
+
+
+이 함수는 다음과 같은 주요 기능을 수행합니다:
+
+조건식을 토큰으로 분리하고 각 토큰을 순회하며 검사합니다.
+
+토큰 사이의 공백을 확인하여 올바른 간격을 유지하는지 검사합니다.
+
+괄호, 연산자, 피연산자의 올바른 순서와 사용을 검증합니다.
+
+피연산자의 타입 호환성을 검사합니다.
+
+조건식의 전체적인 구조가 올바른지 확인합니다.
+
 
 
 const validateSingleCondition = (condition, nodeId) => {
@@ -499,6 +512,7 @@ const validateSingleCondition = (condition, nodeId) => {
       // 공백 토큰 처리
       if (lastNonSpaceToken === null || i === tokens.length - 1) {
         return `Node ${nodeId}: Invalid spacing at the ${lastNonSpaceToken === null ? 'beginning' : 'end'} of the condition`;
+        // 노드 ${nodeId}: 조건식의 ${lastNonSpaceToken === null ? '시작' : '끝'}에 잘못된 공백이 있습니다
       }
       continue;
     }
@@ -506,26 +520,35 @@ const validateSingleCondition = (condition, nodeId) => {
     // 비공백 토큰 사이에 공백이 없는 경우 에러
     if (lastNonSpaceToken !== null && !tokens[i-1].trim() === '') {
       return `Node ${nodeId}: Missing space between '${lastNonSpaceToken}' and '${token}'`;
+      // 노드 ${nodeId}: '${lastNonSpaceToken}'와 '${token}' 사이에 공백이 없습니다
     }
 
     if (token === '(' || token === ')') {
+      // 괄호 처리
       if (token === '(' && !expectOperand) return `Node ${nodeId}: Unexpected '(' at position ${i}`;
+      // 노드 ${nodeId}: ${i}번째 위치에 예상치 못한 '('가 있습니다
       if (token === ')' && expectOperand) return `Node ${nodeId}: Unexpected ')' at position ${i}`;
+      // 노드 ${nodeId}: ${i}번째 위치에 예상치 못한 ')'가 있습니다
       expectOperand = token === '(';
     } else if (operators.has(token)) {
+      // 연산자 처리
       if (expectOperand && token !== '!') return `Node ${nodeId}: Unexpected operator '${token}' at position ${i}`;
+      // 노드 ${nodeId}: ${i}번째 위치에 예상치 못한 연산자 '${token}'가 있습니다
       expectOperand = token !== '!';
       if (['&', '|'].includes(token)) lastType = null;
     } else {
+      // 피연산자 처리
       const currentType = getType(token);
       if (currentType === 'bool' && (token === 'True' || token === 'False' || token.startsWith('!'))) {
         expectOperand = false;
       } else if (expectOperand) {
         if (lastType && !isTypeCompatible(lastType, currentType)) 
           return `Node ${nodeId}: Type mismatch: ${lastType} is not compatible with ${currentType} at position ${i}`;
+          // 노드 ${nodeId}: 타입 불일치: ${i}번째 위치에서 ${lastType}과 ${currentType}이 호환되지 않습니다
         expectOperand = false;
       } else {
         return `Node ${nodeId}: Unexpected token '${token}' at position ${i}`;
+        // 노드 ${nodeId}: ${i}번째 위치에 예상치 못한 토큰 '${token}'이 있습니다
       }
       lastType = currentType;
     }
@@ -534,6 +557,7 @@ const validateSingleCondition = (condition, nodeId) => {
   }
 
   if (expectOperand) return `Node ${nodeId}: Expression ends with an operator`;
+  // 노드 ${nodeId}: 표현식이 연산자로 끝납니다
 
   return null; // 유효한 조건
 };
