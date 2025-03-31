@@ -1,0 +1,233 @@
+const ERROR_MESSAGES = {
+  /**
+   * '&' 또는 '|' 연결문자가 피연산자와 붙어있거나 잘못된 위치에 있을 때 발생.
+   * message: Invalid use of connector '{connector}' at position {position}
+   * korean: 연결문자 '{connector}'가 {position}번째 위치에서 잘못 사용되었습니다
+   */
+  INVALID_CONNECTOR: 'Invalid use of connector \'{connector}\' at position {position}',
+
+  /**
+   * 괄호 '(' 또는 ')'의 짝이 맞지 않을 때 발생.
+   * message: Unmatched parentheses in the expression
+   * korean: 표현식에서 괄호의 짝이 맞지 않습니다
+   */
+  UNMATCHED_PARENTHESIS: 'Unmatched parentheses in the expression',
+
+  /**
+   * 괄호 '(' 또는 ')'가 다른 피연산자와 공백 없이 붙어있을 때 발생.
+   * message: Parenthesis '{parenthesis}' must be separated by spaces at position {position}
+   * korean: 괄호 '{parenthesis}'가 {position}번째 위치에서 공백으로 분리되어야 합니다
+   */
+  PARENTHESIS_SPACING: 'Parenthesis \'{parenthesis}\' must be separated by spaces at position {position}',
+
+  /**
+   * 연산자가 예상되지 않은 위치에서 발견될 때 발생.
+   * message: Unexpected operator '{operator}' at position {position}
+   * korean: {position}번째 위치에서 예상치 못한 연산자 '{operator}'가 발견되었습니다
+   */
+  UNEXPECTED_OPERATOR: 'Unexpected operator \'{operator}\' at position {position}',
+
+  /**
+   * 피연산자가 예상되지 않은 위치에서 발견될 때 발생.
+   * message: Unexpected token '{token}' at position {position}
+   * korean: {position}번째 위치에서 예상치 못한 토큰 '{token}'이 발견되었습니다
+   */
+  UNEXPECTED_TOKEN: 'Unexpected token \'{token}\' at position {position}',
+
+  /**
+   * 두 피연산자의 타입이 호환되지 않을 때 발생.
+   * message: Type mismatch: {type1} is not compatible with {type2} at position {position}
+   * korean: {position}번째 위치에서 타입 불일치가 발생했습니다. {type1}과(와) {type2}는 호환되지 않습니다
+   */
+  TYPE_MISMATCH: 'Type mismatch: {type1} is not compatible with {type2} at position {position}',
+
+  /**
+   * 조건식이 연산자로 끝날 때 발생.
+   * message: Expression ends with an operator
+   * korean: 표현식이 연산자로 끝납니다
+   */
+  ENDS_WITH_OPERATOR: 'Expression ends with an operator',
+
+  /**
+   * userOperands에 정의되지 않은 피연산자가 발견될 때 발생.
+   * message: Operand '{operand}' is not defined in userOperands
+   * korean: 피연산자 '{operand}'가 userOperands에 정의되어 있지 않습니다
+   */
+  OPERAND_NOT_DEFINED: "Operand '{operand}' is not defined in userOperands",
+
+  /**
+   * 일부 branch 노드의 조건이 유효하지 않을 때 반환.
+   * message: Some branch nodes have invalid conditions
+   * korean: 일부 branch 노드의 조건이 유효하지 않습니다
+   */
+  INVALID_NODES_FOUND: "Some branch nodes have invalid conditions",
+
+  /**
+   * 모든 branch 노드의 조건이 유효할 때 반환.
+   * message: All branch node conditions are valid
+   * korean: 모든 branch 노드의 조건이 유효합니다
+   */
+  ALL_NODES_VALID: "All branch node conditions are valid",
+};
+
+export default ERROR_MESSAGES;
+
+
+
+
+---------------------------
+
+<script>
+import ERROR_MESSAGES from './errorMessages.js';
+
+export default {
+  data() {
+    return {
+      validationResult: {},
+    };
+  },
+  methods: {
+    validateNodeCondition(nodes) {
+      const operators = new Set(['>', '<', '<=', '>=', '==', '!=', '&', '|', '!']);
+      const userOperands = [...simpleOperand, ...complexOperand].reduce((acc, { name, type }) => ({ ...acc, [name]: type }), {});
+
+      // 괄호 검증 함수
+      function validateParentheses(condition, nodeId) {
+        let balance = 0;
+
+        for (let i = 0; i < condition.length; i++) {
+          const char = condition[i];
+
+          if (char === '(') balance++;
+          if (char === ')') balance--;
+
+          if (balance < 0) {
+            return ERROR_MESSAGES.UNMATCHED_PARENTHESIS;
+          }
+
+          if ((char === '(' || char === ')') && i > 0 && condition[i - 1] !== ' ' && condition[i - 1] !== '(' && condition[i - 1] !== ')') {
+            return ERROR_MESSAGES.PARENTHESIS_SPACING.replace('{parenthesis}', char).replace('{position}', i);
+          }
+        }
+
+        if (balance !== 0) return ERROR_MESSAGES.UNMATCHED_PARENTHESIS;
+        return null;
+      }
+
+      // 연결문자로 조건 나누기
+      function splitByConnectors(condition, nodeId) {
+        const parts = condition.split(/(&|\|)/).map(part => part.trim());
+
+        for (let i = 0; i < parts.length; i++) {
+          const token = parts[i];
+
+          if ((token === '&' || token === '|') && (i === 0 || i === parts.length - 1)) {
+            return ERROR_MESSAGES.INVALID_CONNECTOR.replace('{connector}', token).replace('{position}', i);
+          }
+          if ((token.includes('&') || token.includes('|')) && token.length > 1) {
+            return ERROR_MESSAGES.INVALID_CONNECTOR.replace('{connector}', token).replace('{position}', i);
+          }
+        }
+
+        return parts.filter(token => token !== '&' && token !== '|');
+      }
+
+      // 연산자와 피연산자 검증
+      function validateOperatorsAndOperands(expression, nodeId) {
+        const tokens = expression.match(/\S+/g);
+        let expectOperand = true;
+        let lastType = null;
+
+        for (let i = 0; i < tokens.length; i++) {
+          const token = tokens[i];
+
+          if (operators.has(token)) {
+            if (expectOperand && token !== '!') {
+              return ERROR_MESSAGES.UNEXPECTED_OPERATOR.replace('{operator}', token).replace('{position}', i);
+            }
+            expectOperand = token !== '!';
+            lastType = null;
+          } else {
+            const currentType = getType(token);
+
+            // 피연산자가 정의되지 않은 경우 에러 반환
+            if (!['None', 'varius', 'bool', 'int', 'float'].includes(currentType) && !userOperands[token.split(':')[0]]) {
+              return ERROR_MESSAGES.OPERAND_NOT_DEFINED.replace('{operand}', token);
+            }
+
+            if (!expectOperand) {
+              return ERROR_MESSAGES.UNEXPECTED_TOKEN.replace('{token}', token).replace('{position}', i);
+            }
+            if (lastType && !isTypeCompatible(lastType, currentType)) {
+              return ERROR_MESSAGES.TYPE_MISMATCH.replace('{type1}', lastType)
+                .replace('{type2}', currentType)
+                .replace('{position}', i);
+            }
+
+            expectOperand = false;
+            lastType = currentType;
+          }
+        }
+
+        if (expectOperand) return ERROR_MESSAGES.ENDS_WITH_OPERATOR;
+        return null;
+      }
+
+      // 타입 결정 함수
+      function getType(token) {
+        if (['True', 'False'].includes(token)) return 'bool';
+        if (token === 'None') return 'None';
+        if (token.startsWith('#')) {
+          const operandName = token.slice(1).split(':')[0];
+          return userOperands[operandName] || 'unknown';
+        }
+        if (userOperands[token.split(':')[0]]) return userOperands[token.split(':')[0]];
+        return !isNaN(token) ? (Number.isInteger(Number(token)) ? 'int' : 'float') : 'string';
+      }
+
+      // 타입 호환성 검사 함수
+      function isTypeCompatible(type1, type2) {
+        return (
+          type1 === type2 ||
+          type1 === 'varius' || 
+          type2 === 'varius' ||
+          (type1 === 'int' && type2 === 'float') ||
+          (type1 === 'float' && type2 === 'int') ||
+          type1 === 'None' ||
+          type2 === 'None'
+        );
+      }
+
+      // 단일 조건 검증 함수
+      function validateSingleCondition(condition, nodeId) {
+        const parenthesesError = validateParentheses(condition, nodeId);
+        if (parenthesesError) return parenthesesError;
+
+        const splitResult = splitByConnectors(condition, nodeId);
+        if (typeof splitResult === 'string') return splitResult;
+
+        for (const subCondition of splitResult) {
+          const operatorError = validateOperatorsAndOperands(subCondition, nodeId);
+          if (operatorError) return operatorError;
+        }
+
+        return null;
+      }
+
+      // 모든 노드 검증 함수
+      const invalidNodes = nodes
+        .filter(node => node.nodeType === 'branch')
+        .map(node => {
+          const error = validateSingleCondition(node.nodeCondition, node.id);
+          return error ? { id: node.id, error } : null;
+        })
+        .filter(Boolean);
+
+      this.validationResult = invalidNodes.length > 0
+        ? { isValid: false, message: ERROR_MESSAGES.INVALID_NODES_FOUND, invalidNodes }
+        : { isValid: true, message: ERROR_MESSAGES.ALL_NODES_VALID };
+    },
+  },
+};
+</script>
+
