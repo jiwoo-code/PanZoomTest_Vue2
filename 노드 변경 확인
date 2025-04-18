@@ -1,0 +1,32 @@
+function hasLogicChanged(initialLogic, modifiedLogic) {
+  const excludeProps = new Set(['nodeName', 'nodeCategory', 'displayLabel', 'posX', 'posY']);
+
+  // 배열 길이 변경 확인
+  if (initialLogic.length !== modifiedLogic.length) return true;
+
+  // nodeId 기준으로 Map 생성
+  const initialMap = new Map(initialLogic.map(node => [node.nodeId, node]));
+  const modifiedMap = new Map(modifiedLogic.map(node => [node.nodeId, node]));
+
+  // nodeId 추가/삭제 여부 확인
+  if (initialMap.size !== modifiedMap.size) return true;
+
+  for (const [nodeId, initialNode] of initialMap.entries()) {
+    if (!modifiedMap.has(nodeId)) return true;
+    const modifiedNode = modifiedMap.get(nodeId);
+
+    // 비교 대상 key 추출 (제외 속성 제외)
+    const initialKeys = Object.keys(initialNode).filter(k => !excludeProps.has(k));
+    const modifiedKeys = Object.keys(modifiedNode).filter(k => !excludeProps.has(k));
+
+    // key 개수 다르면 변경됨
+    if (initialKeys.length !== modifiedKeys.length) return true;
+
+    // 각 key별 값 비교
+    for (const key of initialKeys) {
+      if (initialNode[key] !== modifiedNode[key]) return true;
+    }
+  }
+
+  return false;
+}
