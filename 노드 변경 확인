@@ -30,3 +30,87 @@ function hasLogicChanged(initialLogic, modifiedLogic) {
 
   return false;
 }
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+
+function areSimpleConditionDescriptionsEqual(a, b) {
+  // 둘 다 undefined/null이면 같다
+  if (a == null && b == null) return true;
+
+  // 둘 다 배열
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    // 순서 상관없이 비교하려면 sort 필요, 여기선 순서도 비교
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
+  // 둘 다 Map
+  if (a instanceof Map && b instanceof Map) {
+    if (a.size !== b.size) return false;
+    for (const [key, value] of a.entries()) {
+      if (!b.has(key) || b.get(key) !== value) return false;
+    }
+    return true;
+  }
+
+  // 한쪽은 배열, 한쪽은 Map
+  if (Array.isArray(a) && b instanceof Map) {
+    if (a.length !== b.size) return false;
+    for (const item of a) {
+      if (!b.has(item)) return false;
+    }
+    return true;
+  }
+  if (a instanceof Map && Array.isArray(b)) {
+    if (a.size !== b.length) return false;
+    for (const item of b) {
+      if (!a.has(item)) return false;
+    }
+    return true;
+  }
+
+  // 그 외(원시값 등)는 단순 비교
+  return a === b;
+}
+
+function hasLogicChanged(initialLogic, modifiedLogic) {
+  const excludeProps = new Set(['nodeName', 'nodeCategory', 'displayLabel', 'posX', 'posY']);
+
+  if (initialLogic.length !== modifiedLogic.length) return true;
+
+  const initialMap = new Map(initialLogic.map(node => [node.nodeId, node]));
+  const modifiedMap = new Map(modifiedLogic.map(node => [node.nodeId, node]));
+
+  if (initialMap.size !== modifiedMap.size) return true;
+
+  for (const [nodeId, initialNode] of initialMap.entries()) {
+    if (!modifiedMap.has(nodeId)) return true;
+    const modifiedNode = modifiedMap.get(nodeId);
+
+    const initialKeys = Object.keys(initialNode).filter(k => !excludeProps.has(k));
+    const modifiedKeys = Object.keys(modifiedNode).filter(k => !excludeProps.has(k));
+
+    if (initialKeys.length !== modifiedKeys.length) return true;
+
+    for (const key of initialKeys) {
+      if (key === 'simpleConditionDescription') {
+        if (!areSimpleConditionDescriptionsEqual(initialNode[key], modifiedNode[key])) {
+          return true;
+        }
+      } else {
+        if (initialNode[key] !== modifiedNode[key]) return true;
+      }
+    }
+  }
+
+  return false;
+}
