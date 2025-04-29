@@ -1,0 +1,63 @@
+function getRandomString() {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+  return letters[Math.floor(Math.random() * letters.length)] +
+         numbers[Math.floor(Math.random() * numbers.length)] +
+         letters[Math.floor(Math.random() * letters.length)] +
+         numbers[Math.floor(Math.random() * numbers.length)];
+}
+
+function getRandomNumber(min, max, decimalPlaces = 0) {
+  const value = Math.random() * (max - min) + min;
+  return parseFloat(value.toFixed(decimalPlaces));
+}
+
+function getRandomPercent() {
+  const value = (Math.random() * 20) - 10; // -10% ~ +10%
+  return parseFloat(value.toFixed(1));
+}
+
+function getRandomWithNaN(min, max) {
+  const r = Math.random();
+  if (r < 0.1) return '';       // 10% 확률로 빈 값
+  if (r < 0.2) return NaN;       // 10% 확률로 NaN
+  return getRandomNumber(min, max, 1);
+}
+
+function generateMockData(rowCount = 30) {
+  const data = [];
+
+  for (let i = 0; i < rowCount; i++) {
+    data.push({
+      col1: getRandomString(),
+      col2: getRandomString(),
+      col3: getRandomString(),
+      col4: Math.floor(Math.random() * 9000) + 1000, // 1000 ~ 9999
+      col5: getRandomNumber(10, 99, 1),              // 두자리 숫자, 소수점 1자리
+      col6: Math.random() > 0.5
+              ? getRandomNumber(10, 99, 1)
+              : getRandomNumber(10, 99, 0),           // 소수점 있을 수도, 없을 수도
+      col7: getRandomPercent(),                      // % 값
+      col8: getRandomWithNaN(10, 99),                 // 소수점 1자리, NaN/빈값 가능
+      col9: Math.random() > 0.1
+              ? getRandomNumber(-1.0, 2.4, 1)
+              : '',                                   // 드물게 빈값
+      col10: Math.random() > 0.1
+              ? getRandomNumber(-1.0, 2.4, 1)
+              : '',
+      col11: Math.random() > 0.1
+              ? getRandomNumber(0, 2.4, 1)
+              : '',
+      col12: Math.random() > 0.1
+              ? getRandomNumber(0, 2.4, 1)
+              : ''
+    });
+  }
+
+  return data;
+}
+
+// 예시: 데이터 30줄 생성
+const mockData = generateMockData(30);
+
+console.log(mockData);
