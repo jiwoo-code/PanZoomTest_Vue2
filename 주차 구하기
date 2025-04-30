@@ -1,0 +1,18 @@
+function getYearWeekInfo() {
+  const today = dayjs();
+
+  // 1. 올해 + 주차
+  const year = today.year() % 100;
+  const week = today.isoWeek();
+  const yearWeek = `${year}${week.toString().padStart(2, '0')}`;
+
+  // 2. 전 주 날짜 범위
+  const lastWeekStart = today.startOf('isoWeek').subtract(1, 'week');
+  const lastWeekEnd = lastWeekStart.endOf('isoWeek');
+  const lastWeekRange = `${lastWeekStart.format('YYYY.MM.DD')}~${lastWeekEnd.format('YYYY.MM.DD')}`;
+
+  return {
+    yearWeek,         // ex: "2510"
+    lastWeekRange     // ex: "2025.01.13~2025.01.19"
+  };
+}
