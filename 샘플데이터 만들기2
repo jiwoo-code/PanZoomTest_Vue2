@@ -1,0 +1,62 @@
+export function generateGridMockData() {
+  function generateEqpId(index) {
+    return `PAXJF${String(index).padStart(2, '0')}`;
+  }
+
+  function generateDyValues() {
+    const dyKeys = [
+      "dy_23", "dy_26", "dy_30", "dy_35", "dy_40",
+      "dy_45", "dy_50", "dy_60", "dy_70", "dy_85", "dy_100"
+    ];
+    const values = {};
+    let dySum = 0;
+    let dyCount = 0;
+
+    dyKeys.forEach(key => {
+      if (Math.random() < 0.15) {
+        values[key] = null;
+      } else {
+        const val = parseFloat((Math.random() * (1.0 - 0.987) + 0.987).toFixed(20));
+        values[key] = val;
+        dySum += val;
+        dyCount++;
+      }
+    });
+
+    const dyAvg = dyCount > 0 ? parseFloat((dySum / dyCount).toFixed(20)) : null;
+    return { dyValues: values, dy: dyAvg };
+  }
+
+  const data = [];
+
+  for (let i = 0; i < 50; i++) {
+    const eqp_id = generateEqpId(i + 3); // PAXJF03부터 시작
+    const dt = parseFloat((Math.random() * (60 - 50) + 50).toFixed(6));
+    const dm = parseFloat((Math.random() * (0.15 - 0.05) + 0.05).toFixed(9));
+    const idt = Math.random() > 0.5 ? 'O' : 'X';
+    const slip = Math.random() > 0.5 ? 'O' : 'X';
+    const { dyValues, dy } = generateDyValues();
+
+    let dyo;
+    if (idt === 'O') {
+      dyo = 'X';
+    } else {
+      dyo = dy !== null && dy >= 0.995 ? '1' : '2';
+    }
+
+    const row = {
+      eqp_id,
+      dt,
+      dm,
+      idt,
+      slip,
+      dyo,
+      dy,
+      ...dyValues
+    };
+
+    data.push(row);
+  }
+
+  return data;
+}
