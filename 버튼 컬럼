@@ -189,3 +189,18 @@ export default {
   }
 };
 </script>
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+.history-btn {
+  padding: 4px 8px;
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 4px;
+}
