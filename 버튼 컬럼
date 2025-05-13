@@ -1,50 +1,3 @@
-columnDefs: [
-  // 기존 컬럼들...
-  {
-    headerName: '히스토리',
-    field: 'history',
-    cellRendererFramework: {
-      render: {
-        functional: true,
-        render(h, context) {
-          return h(
-            'button',
-            {
-              on: {
-                click: () => context.parent.$emit('history-click', context.props.data)
-              }
-            },
-            '보기'
-          );
-        }
-      }
-    },
-    width: 100
-  }
-]
-
-
-
-
-
-
-ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
-
-
-data() {
-  return {
-    showHistoryPopup: false,
-    historyRowData: null
-  };
-}
-
-
-
-
-ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
-
-
-
 
 
 
@@ -192,3 +145,47 @@ export default {
 버튼 클릭	this.$emit('history-click', rowData)
 팝업 열기	showHistoryPopup = true, 데이터 전달
 팝업 닫기	@close → 상태 초기화
+
+
+
+
+
+
+ㅡㅡㅡㅡㅡㅡ
+
+
+<template>
+  <div>
+    <ag-grid-vue
+      class="ag-theme-balham"
+      :columnDefs="columnDefs"
+      :rowData="rowData"
+    />
+    <Popup v-if="showHistory" @close="closePopup">
+      <pre>{{ selectedRow }}</pre>
+    </Popup>
+  </div>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      showHistory: false,
+      selectedRow: null
+    };
+  },
+  created() {
+    this.$on('history-click', this.onHistoryClick);
+  },
+  methods: {
+    onHistoryClick(rowData) {
+      this.selectedRow = rowData;
+      this.showHistory = true;
+    },
+    closePopup() {
+      this.showHistory = false;
+    }
+  }
+};
+</script>
