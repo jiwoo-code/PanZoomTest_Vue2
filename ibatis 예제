@@ -1,0 +1,208 @@
+
+---
+
+[구조 요약]
+
+VO
+SourceA, SourceB, MergedResultVO → 결과 포함 3개 컬럼 추가
+
+Mapper
+selectFromTableA, selectFromTableB 두 개의 쿼리
+
+Service
+인터페이스: EqpMergeService
+구현체: EqpMergeServiceImpl (service.impl 폴더)
+
+Controller
+EqpMergeController
+→ /api/eqps/merged 요청 처리
+
+
+
+---
+
+1. VO 클래스
+
+1-1. SourceAVO.java
+
+@Data
+public class SourceAVO {
+    private String eqpId;
+    private String d1;
+    private String d2;
+    private String d3;
+}
+
+1-2. SourceBVO.java
+
+@Data
+public class SourceBVO {
+    private String eqpId;
+    private String status;
+    private String version;
+}
+
+1-3. MergedResultVO.java (컨트롤러 리턴용)
+
+@Data
+public class MergedResultVO {
+    private String eqpId;
+    private String d1;
+    private String d2;
+    private String d3;
+    private String status;
+    private String version;
+
+    // 자바에서 계산해서 넣을 컬럼 3개
+    private String compareStatus;  // 예: "O", "X"
+    private String versionGap;     // 예: "1", "2", "X"
+    private String syncState;      // 예: "OK", "PENDING", "ERROR"
+}
+
+
+---
+
+2. Mapper 인터페이스
+
+@Mapper
+public interface EqpMergeMapper {
+    List<SourceAVO> selectFromTableA(@Param("eqpList") List<String> eqpList);
+    List<SourceBVO> selectFromTableB(@Param("eqpList") List<String> eqpList);
+}
+
+
+---
+
+3. Mapper XML
+
+예: EqpMergeMapper.xml
+
+<select id="selectFromTableA" resultType="com.example.vo.SourceAVO">
+  SELECT eqp_id, d1, d2, d3
+  FROM table_a
+  WHERE eqp_id IN
+  <foreach collection="eqpList" item="eqp" open="(" separator="," close=")">
+    #{eqp}
+  </foreach>
+</select>
+
+<select id="selectFromTableB" resultType="com.example.vo.SourceBVO">
+  SELECT eqp_id, status, version
+  FROM table_b
+  WHERE eqp_id IN
+  <foreach collection="eqpList" item="eqp" open="(" separator="," close=")">
+    #{eqp}
+  </foreach>
+</select>
+
+
+---
+
+4. Service 인터페이스
+
+public interface EqpMergeService {
+    List<MergedResultVO> getMergedData(List<String> eqpList);
+}
+
+
+---
+
+5. Service 구현체 (impl/EqpMergeServiceImpl.java)
+
+@Service
+@RequiredArgsConstructor
+public class EqpMergeServiceImpl implements EqpMergeService {
+
+    private final EqpMergeMapper mapper;
+
+    @Override
+    public List<MergedResultVO> getMergedData(List<String> eqpList) {
+        List<SourceAVO> listA = mapper.selectFromTableA(eqpList);
+        List<SourceBVO> listB = mapper.selectFromTableB(eqpList);
+
+        // B 데이터 맵핑
+        Map<String, SourceBVO> mapB = listB.stream()
+                .collect(Collectors.toMap(SourceBVO::getEqpId, b -> b));
+
+        List<MergedResultVO> resultList = new ArrayList<>();
+
+        for (SourceAVO a : listA) {
+            MergedResultVO result = new MergedResultVO();
+            result.setEqpId(a.getEqpId());
+            result.setD1(a.getD1());
+            result.setD2(a.getD2());
+            result.setD3(a.getD3());
+
+            SourceBVO b = mapB.get(a.getEqpId());
+            if (b != null) {
+                result.setStatus(b.getStatus());
+                result.setVersion(b.getVersion());
+
+                // 비교 컬럼 계산
+                result.setCompareStatus(a.getD1().equals(b.getStatus()) ? "O" : "X");
+
+                // 버전 차이 비교 예시
+                try {
+                    int aVer = Integer.parseInt(a.getD2());
+                    int bVer = Integer.parseInt(b.getVersion());
+                    result.setVersionGap(String.valueOf(bVer - aVer));
+                } catch (Exception e) {
+                    result.setVersionGap("X");
+                }
+
+                result.setSyncState("COMPLETED".equals(b.getStatus()) ? "OK" : "PENDING");
+            } else {
+                result.setStatus(null);
+                result.setVersion(null);
+                result.setCompareStatus("X");
+                result.setVersionGap("X");
+                result.setSyncState("ERROR");
+            }
+
+            resultList.add(result);
+        }
+
+        return resultList;
+    }
+}
+
+
+---
+
+6. Controller 클래스
+
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/eqps")
+public class EqpMergeController {
+
+    private final EqpMergeService eqpMergeService;
+
+    @GetMapping("/merged")
+    public ResponseEntity<List<MergedResultVO>> getMergedData(
+            @RequestParam List<String> eqpList) {
+
+        List<MergedResultVO> result = eqpMergeService.getMergedData(eqpList);
+        return ResponseEntity.ok(result);
+    }
+}
+
+
+---
+
+요약 설명
+
+구성	설명
+
+VO	각각의 쿼리 결과용 VO와 프론트 전달용 VO를 분리함
+Mapper	두 테이블에서 eqp_id IN (...) 조건으로 조회
+Service	A, B 쿼리 결과 병합 + 로직 계산
+Controller	요청 파라미터로 eqpId 리스트를 받아 최종 데이터 전달
+
+
+
+---
+
+구조나 네이밍을 지우님 프로젝트에 맞춰 더 다듬어드릴 수도 있어요.
+필요하면 @RequestBody로 리스트 받는 방식이나, 예외 처리 로직도 추가해드릴게요!
+
