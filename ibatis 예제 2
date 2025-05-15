@@ -1,0 +1,102 @@
+
+
+---
+
+목표
+
+listA와 listB를 eqpId 기준으로 병합
+
+각 쌍을 하나의 MergedResultVO로 가공
+
+stream 하나로 합치기
+
+
+
+---
+
+1. 전제 조건
+
+List<SourceAVO> listA = mapper.selectFromTableA(eqpList);
+List<SourceBVO> listB = mapper.selectFromTableB(eqpList);
+
+
+---
+
+2. 리팩터링 코드 – 람다로 병합 처리
+
+Map<String, SourceBVO> bMap = listB.stream()
+    .collect(Collectors.toMap(SourceBVO::getEqpId, Function.identity()));
+
+List<MergedResultVO> result = listA.stream()
+    .map(a -> {
+        SourceBVO b = bMap.get(a.getEqpId());
+
+        return MergedResultVO.builder()
+            .eqpId(a.getEqpId())
+            .d1(a.getD1())
+            .d2(a.getD2())
+            .d3(a.getD3())
+            .status(b != null ? b.getStatus() : null)
+            .version(b != null ? b.getVersion() : null)
+            .compareStatus(b != null && Objects.equals(a.getD1(), b.getStatus()) ? "O" : "X")
+            .versionGap(calcVersionGap(a.getD2(), b != null ? b.getVersion() : null))
+            .syncState(b != null ? determineSyncState(b.getStatus()) : "ERROR")
+            .build();
+    })
+    .collect(Collectors.toList());
+
+
+---
+
+3. 유틸 메서드 (같이 포함)
+
+private String calcVersionGap(String v1, String v2) {
+    try {
+        return String.valueOf(Integer.parseInt(v2) - Integer.parseInt(v1));
+    } catch (Exception e) {
+        return "X";
+    }
+}
+
+private String determineSyncState(String status) {
+    return switch (status) {
+        case "COMPLETED" -> "OK";
+        case "PENDING" -> "PENDING";
+        default -> "ERROR";
+    };
+}
+
+
+---
+
+4. VO에 빌더 추가 필요
+
+MergedResultVO에 Lombok의 @Builder 추가:
+
+@Data
+@Builder
+public class MergedResultVO {
+    private String eqpId;
+    private String d1;
+    private String d2;
+    private String d3;
+    private String status;
+    private String version;
+    private String compareStatus;
+    private String versionGap;
+    private String syncState;
+}
+
+
+---
+
+결론
+
+> Java에서도 람다 + stream으로 충분히 직관적이고 간결하게 병합 가능합니다.
+LINQ는 없지만, stream은 그에 버금가는 기능을 제공합니다.
+
+
+
+이 스타일이 지우님이 원하는 “읽기 쉬운 병합 로직”에 훨씬 가까울 거예요.
+이제 더 복잡한 조건도 람다로 확장하기도 쉬워지겠죠!
+
