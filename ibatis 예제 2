@@ -102,6 +102,31 @@ LINQ는 없지만, stream은 그에 버금가는 기능을 제공합니다.
 
 
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+@Data
+public class MergedResultVO {
+
+    private BigDecimal lower;
+    private BigDecimal q1;
+    private BigDecimal upper;
+    private BigDecimal q2;
+
+    @JsonProperty("newProp")
+    public boolean isNewProp() {
+        return isValidLower() && isValidUpper();
+    }
+
+    private boolean isValidLower() {
+        return lower != null && q1 != null && lower.compareTo(q1) >= 0;
+    }
+
+    private boolean isValidUpper() {
+        return upper != null && q2 != null && upper.compareTo(q2) <= 0;
+    }
+}
+
+
 
 
 
