@@ -129,6 +129,33 @@ public class MergedResultVO {
 
 
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+@Data
+public class MergedResultVO {
+    private boolean propA;
+    private boolean propB;
+    private BigDecimal old;
+
+    @JsonProperty("propC")
+    public String getPropC() {
+        if (propA && propB) {
+            return "X";
+        }
+
+        if (old != null && old.compareTo(BigDecimal.valueOf(99.5)) >= 0) {
+            return "1";
+        }
+
+        return "2";
+    }
+}
+
+
+
+
+
+
 
 
 
