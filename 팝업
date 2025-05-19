@@ -1,0 +1,116 @@
+<template>
+  <div class="history-popup">
+    <div class="popup-header">
+      <h3>History - {{ eqpId }}</h3>
+    </div>
+
+    <ag-grid-vue
+      class="ag-theme-balham"
+      style="width: 100%; height: 300px;"
+      :columnDefs="columnDefs"
+      :rowData="rowData"
+      :gridOptions="gridOptions"
+    />
+
+    <div class="popup-footer">
+      <cs-button size="sm" @click="$emit('close')">닫기</cs-button>
+    </div>
+  </div>
+</template>
+
+<script>
+import { AgGridVue } from 'ag-grid-vue';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-balham.css';
+
+export default {
+  name: 'HistoryPopup',
+  components: { AgGridVue },
+  props: {
+    eqpData: {
+      type: Object,
+      required: true
+    }
+  },
+  data() {
+    return {
+      eqpId: this.eqpData.eqp_id,
+      columnDefs: [
+        { headerName: '이력 항목', field: 'item' },
+        { headerName: '값', field: 'value' },
+        { headerName: '변경일시', field: 'timestamp' }
+      ],
+      rowData: [],
+      gridOptions: {
+        defaultColDef: {
+          resizable: true,
+          sortable: true,
+          filter: true
+        }
+      }
+    };
+  },
+  mounted() {
+    this.loadHistory();
+  },
+  methods: {
+    loadHistory() {
+      // 백엔드에서 데이터 불러오기 (예시용 fetch)
+      this.$axios.get(`/api/history/${this.eqpId}`)
+        .then(res => {
+          this.rowData = res.data;
+        })
+        .catch(() => {
+          this.rowData = [];
+        });
+    }
+  }
+};
+</script>
+
+<style scoped>
+.history-popup {
+  padding: 16px;
+  background: white;
+  border-radius: 8px;
+  min-width: 600px;
+}
+.popup-header {
+  margin-bottom: 12px;
+}
+.popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+</style>
+
+
+지우님, 요청하신 구조로 팝업 컴포넌트 HistoryPopup.vue를 만들어 드렸어요.
+
+✅ 주요 구성
+
+상단: "History - eqp_id" 타이틀
+
+중간: ag-grid-vue를 사용한 히스토리 그리드
+
+하단: 오른쪽 정렬된 닫기 버튼
+
+mounted 시점에 eqp_id를 기반으로 API 호출 (this.$axios.get 예시)
+
+
+✅ 사용 예 (grid.vue에서)
+
+this.$emit('open-history', rowData);
+
+✅ main.vue 또는 popup 제어부에서
+
+<HistoryPopup
+  v-if="showHistory"
+  :eqpData="selectedRow"
+  @close="showHistory = false"
+/>
+
+이제 이 컴포넌트에 API 경로나 컬럼 구성만 조정하면 바로 적용 가능합니다.
+확장이나 팝업 띄우는 위치 조정도 원하시면 도와드릴게요!
+
