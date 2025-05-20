@@ -119,3 +119,30 @@ this.$emit('select-eqp', eqpId); // 허용된 경우에만 탭 생성
 
 ---
 
+
+
+methods: {
+  onRowSelected(event) {
+    const eqpId = event.data.eqp_id;
+
+    if (event.node.selected) {
+      // 서버에 존재 여부 확인
+      axios.get('/api/eqp/exists', { params: { eqpId } })
+        .then(res => {
+          if (res.data === true) {
+            this.$emit('eqpSelected', event.data);
+          } else {
+            // 체크 해제
+            event.node.setSelected(false);
+            alert('히스토리 데이터가 없어 선택을 취소합니다.');
+          }
+        })
+        .catch(() => {
+          event.node.setSelected(false);
+          alert('조회 중 오류가 발생했습니다.');
+        });
+    } else {
+      this.$emit('eqpUnselected', event.data);
+    }
+  }
+}
