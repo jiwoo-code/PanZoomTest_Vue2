@@ -1,0 +1,154 @@
+grid.vue 안에서 바로 사용할 수 있는 Vue methods용 자동 flex 적용 함수로 구성해드릴게요.
+
+
+---
+
+✅ methods 예시 (고정 컬럼 제외 후 자동 flex 비율 적용)
+
+methods: {
+  applyAutoFlex(fixedColIds = []) {
+    const allCols = this.gridColumnApi.getAllColumns();
+    const autoCols = [];
+    const widthMap = {};
+
+    // 1. 고정 컬럼 제외하고 autoSize로 실제 너비 측정
+    allCols.forEach(col => {
+      const id = col.getColId();
+      if (!fixedColIds.includes(id)) {
+        this.gridColumnApi.autoSizeColumn(col);
+        widthMap[id] = col.getActualWidth();
+        autoCols.push(id);
+      }
+    });
+
+    // 2. auto 컬럼들의 전체 너비
+    const total = autoCols.reduce((sum, id) => sum + widthMap[id], 0);
+
+    // 3. flex 비율 계산해서 적용
+    autoCols.forEach(id => {
+      const col = this.gridColumnApi.getColumn(id);
+      const colDef = col.getColDef();
+      delete colDef.width; // 기존 width 제거
+      colDef.flex = Math.round((widthMap[id] / total) * 1000); // 비율 계산
+    });
+
+    this.gridColumnApi.refreshHeader(); // 헤더 갱신
+  }
+}
+
+
+---
+
+✅ 사용 예시 (onGridReady 또는 onFirstDataRendered에서 호출)
+
+onGridReady(params) {
+  this.gridApi = params.api;
+  this.gridColumnApi = params.columnApi;
+
+  this.$nextTick(() => {
+    this.applyAutoFlex(['eqp_id', 'timestamp']); // 이 두 컬럼은 고정, 나머지는 auto 비율 적용
+  });
+}
+
+
+---
+
+✅ 결과
+
+eqp_id / timestamp: 고정 너비 유지
+
+나머지 컬럼: 값 길이 기준으로 자동 비율 flex 계산
+
+가로 스크롤 없이 자연스러운 너비 배분
+
+
+
+
+
+
+
+
+
+
+
+
+
+✅ 개선된 applyAutoFlex(fixedCols, options) 메서드
+
+methods: {
+  /**
+   * 자동 flex 분배 메서드
+   * @param {Array<String>} fixedColIds - 고정 컬럼 ID 목록
+   * @param {Object} options - 추가 설정
+   *   - minWidth: 고정 컬럼 최소 너비 (기본 100)
+   *   - maxAutoWidth: 자동 컬럼 최대 너비 (기본 300)
+   *   - flexScale: 비율 계산 시 배수 (기본 1000)
+   */
+  applyAutoFlex(fixedColIds = [], options = {}) {
+    const {
+      minWidth = 100,
+      maxAutoWidth = 300,
+      flexScale = 1000
+    } = options;
+
+    const allCols = this.gridColumnApi.getAllColumns();
+    const autoCols = [];
+    const widthMap = {};
+
+    // 1. autoSize로 너비 측정
+    allCols.forEach(col => {
+      const id = col.getColId();
+      if (!fixedColIds.includes(id)) {
+        this.gridColumnApi.autoSizeColumn(col);
+        widthMap[id] = col.getActualWidth();
+        autoCols.push(id);
+      }
+    });
+
+    // 2. auto 컬럼 전체 너비 계산
+    const total = autoCols.reduce((sum, id) => sum + widthMap[id], 0);
+
+    // 3. auto 컬럼에 flex 비율 적용
+    autoCols.forEach(id => {
+      const col = this.gridColumnApi.getColumn(id);
+      const colDef = col.getColDef();
+      delete colDef.width;
+      colDef.flex = Math.round((widthMap[id] / total) * flexScale);
+      colDef.maxWidth = maxAutoWidth;
+    });
+
+    // 4. 고정 컬럼에 minWidth 적용
+    fixedColIds.forEach(id => {
+      const col = this.gridColumnApi.getColumn(id);
+      const colDef = col.getColDef();
+      colDef.minWidth = minWidth;
+    });
+
+    this.gridColumnApi.refreshHeader();
+  }
+}
+
+
+---
+
+✅ 사용 예시
+
+this.applyAutoFlex(['eqp_id', 'timestamp'], {
+  minWidth: 120,
+  maxAutoWidth: 400,
+  flexScale: 1000
+});
+
+
+---
+
+✅ 요약
+
+매개변수	설명	기본값
+
+fixedColIds	고정 컬럼 ID 배열	필수
+minWidth	고정 컬럼 최소 너비	100
+maxAutoWidth	자동 컬럼 최대 너비	300
+flexScale	전체 비율 배수 (정수 변환용)	1000
+
+
