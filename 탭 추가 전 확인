@@ -1,0 +1,121 @@
+
+---
+
+✅ 기능 명세 요약
+
+액션: eqpId 클릭 or 체크박스 선택
+
+동작 전 확인: /api/eqp/exists?eqpId=... 같은 API 호출
+
+결과 없음: 탭 생성/이동 하지 않고 alert("데이터가 없습니다")
+
+
+
+---
+
+✅ 1. API 명칭 및 추천
+
+이름: checkEqpHasData
+
+HTTP Method: GET
+
+URL: /api/eqp/exists?eqpId=EQP001
+
+리턴: true 또는 false
+
+
+
+---
+
+✅ 2. Java 백엔드 코드
+
+Controller
+
+@GetMapping("/api/eqp/exists")
+public boolean checkEqpHasData(@RequestParam String eqpId) {
+    return eqpService.existsByEqpId(eqpId);
+}
+
+Service
+
+public interface EqpService {
+    boolean existsByEqpId(String eqpId);
+}
+
+ServiceImpl
+
+@Service
+@RequiredArgsConstructor
+public class EqpServiceImpl implements EqpService {
+
+    private final EqpMapper eqpMapper;
+
+    @Override
+    public boolean existsByEqpId(String eqpId) {
+        return eqpMapper.countByEqpId(eqpId) > 0;
+    }
+}
+
+Mapper 인터페이스
+
+int countByEqpId(@Param("eqpId") String eqpId);
+
+Mapper XML
+
+<select id="countByEqpId" resultType="int">
+  SELECT COUNT(*) FROM eqp_history WHERE eqp_id = #{eqpId}
+</select>
+
+
+---
+
+✅ 3. Vue2 코드 (grid.vue)
+
+methods: {
+  onRowClicked(params) {
+    const eqpId = params.data.eqp_id;
+    this.checkAndOpenTab(eqpId);
+  },
+  checkAndOpenTab(eqpId) {
+    axios.get('/api/eqp/exists', { params: { eqpId } })
+      .then(res => {
+        if (res.data === true) {
+          this.$emit('select-eqp', eqpId); // 탭 생성 or 이동
+        } else {
+          alert('선택한 장비의 히스토리 데이터가 없습니다.');
+        }
+      })
+      .catch(err => {
+        console.error('확인 요청 실패', err);
+        alert('조회 중 오류가 발생했습니다.');
+      });
+  }
+}
+
+
+---
+
+✅ 4. emit 처리 (monitorTab.vue → main.vue)
+
+기존 방식 그대로 유지됩니다:
+
+this.$emit('select-eqp', eqpId); // 허용된 경우에만 탭 생성
+
+
+---
+
+✅ 전체 흐름 요약
+
+1. 클릭/선택 이벤트 → check API 호출
+
+
+2. 결과 true면 → 기존대로 탭 생성 + 이동
+
+
+3. false면 → alert 후 아무 작업 안 함
+
+
+
+
+---
+
