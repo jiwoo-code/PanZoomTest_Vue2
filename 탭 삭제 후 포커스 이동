@@ -1,0 +1,115 @@
+
+---
+
+✅ 먼저 논리 검증
+
+전제
+
+기본 탭은 index 1 (삭제 안 됨)
+
+controlTabs는 index 2부터 시작
+
+controlTabs[i]의 탭 index는 i + 2
+
+
+
+---
+
+✅ 삭제 조건과 포커스 처리 로직 검증
+
+조건	처리 로직	포커스 이동 index
+
+삭제 탭 = 포커스 탭	오른쪽 탭 있음	삭제 탭 index 유지 (→ 오른쪽 탭이 당겨져 해당 위치 차지)
+삭제 탭 = 포커스 탭	오른쪽 탭 없음	삭제 탭 index - 1
+삭제 탭 < 포커스 탭	삭제로 인해 포커스 index 1 감소	
+삭제 탭 > 포커스 탭	포커스 index 변화 없음	
+
+
+→ 명확하게 맞는 로직입니다. 이대로 구현하면 포커스 꼬임 발생하지 않아요.
+
+
+---
+
+✅ 함수 분리 검증
+
+함수	기능	분리 적절성
+
+removeControlTab(eqpId)	탭 배열에서 삭제만	적절 (재사용 가능)
+handleTabCloseFocus(tabIdx)	포커스 이동 판단 및 적용	적절 (선택적 이동)
+
+
+→ 책임이 명확히 다르기 때문에 분리하는 것이 유지보수와 가독성에 유리합니다.
+
+
+---
+
+✅ 최종 코드 제안
+
+onClickTabClose
+
+onClickTabClose(eqpId, tabIdx) {
+  const isActive = this.activeTabIdx === tabIdx;
+  const isBeforeActive = tabIdx < this.activeTabIdx;
+
+  // 포커스 변경 판단
+  this.handleTabCloseFocus(tabIdx, isActive, isBeforeActive);
+
+  // 탭 삭제 유도
+  this.$refs.monitorTab.$refs.monitorGrid.deselectRowByEqpId(eqpId);
+}
+
+
+---
+
+handleTabCloseFocus
+
+handleTabCloseFocus(closedTabIdx, isActive, isBeforeActive) {
+  let nextFocusIdx = this.activeTabIdx;
+
+  if (isActive) {
+    const closedIndex = closedTabIdx - 2;
+    const totalTabs = this.controlTabs.length;
+
+    if (closedIndex + 1 < totalTabs) {
+      // 오른쪽 탭 존재 → 포커스 그대로 (그 자리에 오른쪽 탭 올라옴)
+      nextFocusIdx = closedTabIdx;
+    } else {
+      // 오른쪽 없음 → 왼쪽 탭으로
+      nextFocusIdx = closedTabIdx - 1;
+    }
+  } else if (isBeforeActive) {
+    // 삭제된 탭이 포커스 앞쪽이면 포커스 index 하나 줄어야 함
+    nextFocusIdx = this.activeTabIdx - 1;
+  }
+
+  this.$nextTick(() => {
+    this.$refs.tabBox.setIndex(nextFocusIdx);
+  });
+}
+
+
+---
+
+removeControlTab
+
+removeControlTab(eqpId) {
+  const index = this.controlTabs.findIndex(tab => tab.eqp_id === eqpId);
+  if (index !== -1) {
+    this.controlTabs.splice(index, 1);
+  }
+}
+
+
+---
+
+✅ 이 구조의 장점
+
+삭제와 포커스 분리 → 명확한 책임
+
+탭 삭제 전에 포커스 계산 → index 꼬임 방지
+
+모든 상황에서 자연스럽게 포커스 유지
+
+
+
+---
