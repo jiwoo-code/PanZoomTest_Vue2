@@ -1,0 +1,108 @@
+이미지 잘 확인했어요 지우님!
+이번에는 각 .item 안의 .value만이 아니라, .value 두 개를 감싸고 있는 공통 영역 — 즉, "값 블럭 전체(주황색 영역)"에 메시지를 띄우고 반투명하게 덮고 싶다는 거죠.
+
+
+---
+
+✅ 구조 개선 방향
+
+이렇게 .value 2개를 묶는 중간 래퍼(div)를 만들어서, 이 래퍼에 오버레이를 붙이면 정확히 원하는 범위만 덮을 수 있어요.
+
+
+---
+
+✅ HTML 구조 예시
+
+<div class="card">
+  <div class="title-row">
+    <div class="title">타이틀</div>
+    <div class="title">타이틀2</div>
+  </div>
+
+  <div class="value-group">
+    <div class="value">값1</div>
+    <div class="value">값2</div>
+
+    <!-- 오버레이는 여기! -->
+    <div v-if="underDevelopment" class="overlay">
+      <div class="overlay-text">개발 중입니다</div>
+    </div>
+  </div>
+</div>
+
+
+---
+
+✅ 스타일 예시
+
+.card {
+  padding: 16px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+}
+
+.title-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.title {
+  flex: 1;
+  font-weight: bold;
+}
+
+.value-group {
+  display: flex;
+  gap: 16px;
+  position: relative; /* ✅ 오버레이 기준점 */
+}
+
+.value {
+  flex: 1;
+  background-color: #f9f9f9;
+  padding: 12px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+/* 오버레이 */
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255,255,255,0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2;
+  border-radius: 6px;
+}
+
+.overlay-text {
+  font-weight: bold;
+  color: #444;
+  font-size: 1em;
+}
+
+
+---
+
+✅ 결과
+
+**두 개의 .value 영역을 함께 감싸는 div.value-group**을 기준으로 오버레이가 적용
+
+오버레이는 뒷배경이 흐릿하게 보이고, 가운데에 “개발 중입니다” 메시지 표시
+
+상단 타이틀들은 영향을 받지 않음
+
+
+
+---
+
+지금처럼 정확히 감싸고 싶은 범위가 있으면 "그 범위를 wrapping하는 전용 div"를 만들어 오버레이를 그 안에 넣는 게 가장 깔끔하고 안전한 방식이에요.
+
+원하시면 이 구조를 컴포넌트화하거나, 여러 개의 그룹 중 일부만 덮는 조건 분기도 도와드릴게요!
+
