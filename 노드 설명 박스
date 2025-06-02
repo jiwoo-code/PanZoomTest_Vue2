@@ -1,0 +1,109 @@
+LegendBox.vue
+
+<template>
+  <div class="legend-container">
+    <!-- 박스들 -->
+    <div class="legend-box pink">CONDITION</div>
+    <div class="legend-box orange">중첩 LOSS</div>
+    <div class="legend-box olive">LOSS</div><!-- 화살표들 -->
+<div class="legend-arrow">
+  <div class="arrow true-arrow"></div>
+  <span class="arrow-label">TRUE</span>
+</div>
+<div class="legend-arrow">
+  <div class="arrow false-arrow"></div>
+  <span class="arrow-label">FALSE</span>
+</div>
+
+  </div>
+</template><script>
+export default {
+  name: 'LegendBox'
+};
+</script><style scoped>
+.legend-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.legend-box {
+  padding: 6px 14px;
+  border-radius: 10px;
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.pink {
+  background: linear-gradient(135deg, #f8b6c1, #f06292);
+}
+
+.orange {
+  background: linear-gradient(135deg, #ffc107, #ff9800);
+}
+
+.olive {
+  background: linear-gradient(135deg, #b5c58f, #8a9a5b);
+}
+
+.legend-arrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.arrow {
+  width: 40px;
+  height: 2px;
+  position: relative;
+}
+
+.true-arrow {
+  background-color: #64b5f6;
+}
+
+.true-arrow::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid #64b5f6;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+.false-arrow {
+  background-color: #f48fb1;
+}
+
+.false-arrow::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid #f48fb1;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+.arrow-label {
+  font-size: 14px;
+  font-weight: bold;
+}
+</style>
+
+
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡ
+
