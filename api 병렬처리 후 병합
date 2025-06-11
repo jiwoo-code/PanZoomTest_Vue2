@@ -60,3 +60,74 @@ for (String eqpId : eqpIdList) {
 
     futureMap.put(eqpId, future);
 }
+
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+public List<FinalResultVo> getMergedResult(List<String> eqpIds) {
+    // 1. 기존 쿼리 호출
+    List<DataVo1> list1 = mapper.selectDataVo1(eqpIds);
+    List<DataVo2> list2 = mapper.selectDataVo2(eqpIds);
+
+    // 2. 외부 API 호출 결과 수집 (동기)
+    Map<String, Object> apiResultMap = new HashMap<>();
+    for (String eqpId : eqpIds) {
+        try {
+            Map<String, Object> result = externalService.callExternalApi(eqpId);
+            result.put("status", true);  // 성공 시 status: true
+            apiResultMap.put(eqpId, result);
+        } catch (Exception e) {
+            // 실패 시 기본 구조로 채움
+            Map<String, Object> failedResult = new HashMap<>();
+            failedResult.put("status", false);
+            apiResultMap.put(eqpId, failedResult);
+        }
+    }
+
+    // 3. 결과 병합
+    return list1.stream().map(vo1 -> {
+        String eqpId = vo1.getEqpId();
+        DataVo2 matchedVo2 = list2.stream()
+            .filter(vo2 -> vo2.getEqpId().equals(eqpId))
+            .findFirst().orElse(null);
+
+        Map<String, Object> apiResult = apiResultMap.getOrDefault(eqpId, Collections.emptyMap());
+
+        // 빌더 또는 생성자로 병합 결과 생성
+        return FinalResultVo.builder()
+            .eqpId(eqpId)
+            .aaa(vo1.getAaa())
+            .bbb(matchedVo2 != null ? matchedVo2.getBbb() : null)
+            .apiResult(apiResult)
+            .build();
+    }).collect(Collectors.toList());
+}
+
+
+
+
+@Builder
+@Data
+public class FinalResultVo {
+    private String eqpId;
+    private String aaa;
+    private String bbb;
+    private boolean status; // ✅ status 분리
+    private Map<String, Object> apiResult;
+}
+
+
+return FinalResultVo.builder()
+    .eqpId(eqpId)
+    .aaa(vo1.getAaa())
+    .bbb(matchedVo2 != null ? matchedVo2.getBbb() : null)
+    .status((Boolean) apiResult.getOrDefault("status", false))  // ✅ 분리된 status
+    .apiResult(apiResult)
+    .build();
+
+
