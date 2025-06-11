@@ -32,3 +32,31 @@ public List<Map<String, Object>> getMergedEqpData(List<String> eqpIdList) {
 
     return merged;
 }
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+
+Map<String, CompletableFuture<Map<String, Object>>> futureMap = new HashMap<>();
+
+for (String eqpId : eqpIdList) {
+    CompletableFuture<Map<String, Object>> future = CompletableFuture.supplyAsync(() -> {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            Map<String, Object> apiResult = externalApiService.getStatusMap(eqpId); // 외부 API 호출
+            result.putAll(apiResult);
+            result.put("status", true); // 200 성공일 때
+        } catch (HttpClientErrorException e) {
+            result.put("status", false); // 예외 발생
+        } catch (Exception e) {
+            result.put("status", false); // 기타 예외
+        }
+        return result;
+    });
+
+    futureMap.put(eqpId, future);
+}
