@@ -131,3 +131,20 @@ return FinalResultVo.builder()
     .build();
 
 
+ㅡㅡㅡㅡㅡㅡㅡㅡ
+
+@SuppressWarnings("unchecked")
+Map<String, Map<String, Object>> resultMap = (Map<String, Map<String, Object>>) (Map<?, ?>) futureMap.entrySet().stream()
+    .collect(Collectors.toMap(
+        Map.Entry::getKey,
+        e -> {
+            try {
+                return e.getValue().get();
+            } catch (Exception ex) {
+                Map<String, Object> failMap = new HashMap<>();
+                failMap.put("status", false);
+                failMap.put("data", null);
+                return failMap;
+            }
+        }
+    ));
