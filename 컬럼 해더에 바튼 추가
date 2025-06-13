@@ -1,0 +1,17 @@
+// 파일 안 어디든, export default 바깥에 선언
+function MyHeader() {}
+MyHeader.prototype.init = function (params) {
+  this.eGui = document.createElement('div');
+  this.eGui.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span>${params.colDef.headerName}</span>
+      <button>🔄</button>
+    </div>
+  `;
+  this.eGui.querySelector('button').addEventListener('click', () => {
+    alert('헤더 버튼 클릭!');
+  });
+};
+MyHeader.prototype.getGui = function () {
+  return this.eGui;
+};
