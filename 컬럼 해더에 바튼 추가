@@ -1,57 +1,67 @@
-MyHeader.prototype.init = function (params) {
-  console.log('헤더 컴포넌트 params:', params); // ✅ 여기에!
+function MyHeader() {}
 
+MyHeader.prototype.init = function (params) {
   const wrapper = document.createElement('div');
   wrapper.className = 'my-custom-header-wrapper';
 
   const label = document.createElement('span');
-  label.innerText = params.colDef.headerName || params.colDef.field;
+  label.innerText = params.column.colDef.headerName || params.column.colDef.field;
 
-  const btn = document.createElement('button');
-  btn.innerText = '🔄';
-  btn.className = 'my-header-button';
-
-  btn.addEventListener('click', () => {
-    alert(`컬럼: ${params.colDef.field}`);
+  const button = document.createElement('button');
+  button.innerText = '🔄';
+  button.className = 'my-header-button';
+  button.addEventListener('click', () => {
+    alert(`컬럼: ${params.column.colDef.field}`);
   });
 
+  const sortEl = document.createElement('span');
+  sortEl.className = 'ag-header-icon ag-header-cell-sortable-icon';
+  sortEl.appendChild(params.column.createSortIconDom()); // ✅ 정렬 아이콘 붙이기
+
+  const menuEl = document.createElement('span');
+  menuEl.className = 'ag-header-icon ag-header-cell-menu-button';
+  menuEl.innerHTML = '☰'; // 필터 아이콘 대체
+  menuEl.addEventListener('click', () => {
+    params.showColumnMenu(menuEl); // ✅ 필터 메뉴 열기
+  });
+
+  const right = document.createElement('div');
+  right.style.display = 'flex';
+  right.style.gap = '4px';
+  right.appendChild(sortEl);
+  right.appendChild(menuEl);
+  right.appendChild(button);
+
   wrapper.appendChild(label);
-  wrapper.appendChild(btn);
+  wrapper.appendChild(right);
 
   this.eGui = wrapper;
 };
+
+MyHeader.prototype.getGui = function () {
+  return this.eGui;
+};
+
 
 
 .my-custom-header-wrapper {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 100%;
   width: 100%;
+  height: 100%;
+  /* background-color: white; ← 제거 */
+  padding: 0 4px;
   box-sizing: border-box;
-  padding: 0 6px;
-  overflow: hidden;
-  background-color: white; /* 배경색 지정 필수 */
+  font-size: inherit;
+  color: inherit;
 }
 
 .my-header-button {
-  font-size: 12px;
-  padding: 2px 6px;
+  background: none;
+  border: none;
   cursor: pointer;
+  padding: 2px;
+  font-size: inherit;
+  color: inherit;
 }
-
-
-import MyHeader from './MyHeader.js';
-
-columnDefs: [
-  {
-    field: 'status',
-    headerName: '상태',
-    headerComponent: MyHeader,
-    width: 160
-  },
-  {
-    field: 'other',
-    headerName: '다른 컬럼'
-  }
-]
