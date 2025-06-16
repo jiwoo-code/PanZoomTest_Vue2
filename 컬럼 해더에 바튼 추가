@@ -3,33 +3,31 @@ function MyHeader() {}
 MyHeader.prototype.init = function (params) {
   this.params = params;
 
-  // 전체 wrapper
   const eGui = document.createElement('div');
   eGui.className = 'ag-header-cell-label';
   eGui.style.display = 'flex';
   eGui.style.alignItems = 'center';
   eGui.style.justifyContent = 'space-between';
-  eGui.style.width = '100%';
+  eGui.style.cursor = 'pointer';
 
-  // 왼쪽: ! 아이콘 버튼
+  // ❗ 버튼 (왼쪽)
   const infoButton = document.createElement('button');
   infoButton.innerText = '❗';
-  infoButton.className = 'my-header-info-btn';
   infoButton.style.marginRight = '4px';
   infoButton.style.background = 'none';
   infoButton.style.border = 'none';
   infoButton.style.cursor = 'pointer';
   infoButton.addEventListener('click', (e) => {
-    e.stopPropagation(); // 정렬 방지
-    alert(`이미지 팝업 예정: ${params.column.getColDef().field}`);
+    e.stopPropagation(); // 정렬 트리거 막음
+    alert(`이미지 버튼 클릭됨: ${params.column.getColDef().field}`);
   });
 
   // 컬럼명
   const label = document.createElement('span');
   label.className = 'ag-header-cell-text';
-  label.innerText = params.column.getColDef().headerName || params.column.getColDef().field;
+  label.innerText = params.displayName;
 
-  // 오른쪽: ag-Grid 내부 정렬/필터 아이콘 (자동으로 작동)
+  // 정렬 아이콘 영역
   const sortOrderIcon = document.createElement('span');
   sortOrderIcon.className = 'ag-header-icon ag-sort-order';
 
@@ -39,33 +37,40 @@ MyHeader.prototype.init = function (params) {
   const sortDescIcon = document.createElement('span');
   sortDescIcon.className = 'ag-header-icon ag-sort-descending-icon';
 
+  // 필터 메뉴 버튼
   const menuIcon = document.createElement('span');
   menuIcon.className = 'ag-header-icon ag-header-cell-menu-button';
   menuIcon.addEventListener('click', (e) => {
-    e.stopPropagation(); // 정렬 방지
+    e.stopPropagation(); // 정렬 막고 메뉴만 열림
     params.showColumnMenu(menuIcon);
   });
 
-  // 내부 컨테이너 구성
-  const leftPart = document.createElement('div');
-  leftPart.style.display = 'flex';
-  leftPart.style.alignItems = 'center';
-  leftPart.appendChild(infoButton);
-  leftPart.appendChild(label);
+  // 왼쪽 그룹 (❗ + 컬럼명)
+  const left = document.createElement('div');
+  left.style.display = 'flex';
+  left.style.alignItems = 'center';
+  left.appendChild(infoButton);
+  left.appendChild(label);
 
-  const rightPart = document.createElement('div');
-  rightPart.style.display = 'flex';
-  rightPart.style.alignItems = 'center';
-  rightPart.style.gap = '4px';
-  rightPart.appendChild(sortOrderIcon);
-  rightPart.appendChild(sortAscIcon);
-  rightPart.appendChild(sortDescIcon);
-  rightPart.appendChild(menuIcon);
+  // 오른쪽 그룹 (정렬 + 필터)
+  const right = document.createElement('div');
+  right.style.display = 'flex';
+  right.style.alignItems = 'center';
+  right.style.gap = '4px';
+  right.appendChild(sortOrderIcon);
+  right.appendChild(sortAscIcon);
+  right.appendChild(sortDescIcon);
+  right.appendChild(menuIcon);
 
-  // 전체 조립
-  eGui.appendChild(leftPart);
-  eGui.appendChild(rightPart);
+  // 클릭 시 정렬 동작
+  eGui.addEventListener('click', () => {
+    if (params.enableSorting) {
+      params.progressSort();
+    }
+  });
 
+  eGui.appendChild(left);
+  eGui.appendChild(right);
   this.eGui = eGui;
 };
 
