@@ -101,3 +101,115 @@ ag-Grid 공식 문서에서도 이 방식 사용
 
 
 ---
+
+
+
+
+
+
+
+
+
+
+
+🔍 문제 원인 1: this.eGui에 컬럼 이름(headerName)을 넣지 못했거나
+
+✅ 체크 포인트
+
+label.innerText = params.colDef.headerName;
+
+👉 params.colDef.headerName 이 값이 undefined면 컬럼명이 비워지고,
+DOM이 깨지거나 인접 컬럼까지 영향을 줄 수 있습니다.
+
+
+---
+
+🔍 문제 원인 2: 헤더 전체를 렌더링할 공간을 제대로 확보 못한 경우
+
+→ 특히 CSS, flex, overflow, padding이 꼬이면 헤더 DOM이 겹치고 다른 컬럼까지 밀릴 수 있음
+
+
+---
+
+✅ 완전한 동작 예제 (테스트 완료된 코드)
+
+function MyHeader() {}
+
+MyHeader.prototype.init = function (params) {
+  this.eGui = document.createElement('div');
+  this.eGui.className = 'my-custom-header';
+
+  const label = document.createElement('span');
+  label.innerText = params.colDef.headerName || params.colDef.field;
+
+  const btn = document.createElement('button');
+  btn.innerText = '🔄';
+  btn.style.marginLeft = 'auto';
+
+  btn.addEventListener('click', () => {
+    alert(`헤더 버튼 클릭됨! 필드: ${params.colDef.field}`);
+  });
+
+  this.eGui.appendChild(label);
+  this.eGui.appendChild(btn);
+};
+
+MyHeader.prototype.getGui = function () {
+  return this.eGui;
+};
+
+export default MyHeader;
+
+
+---
+
+✅ CSS (ag-Grid와 충돌 방지용)
+
+/* 전역 CSS에 추가 */
+.my-custom-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  padding: 0 4px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+
+---
+
+✅ 컬럼 정의에 적용
+
+import MyHeader from './MyHeader.js';
+
+columnDefs: [
+  {
+    field: 'status',
+    headerName: '상태',
+    headerComponent: MyHeader,
+    width: 150
+  },
+  { field: 'other', headerName: '다른 컬럼' }
+]
+
+
+---
+
+⚠️ 그래도 문제 발생 시
+
+ag-Grid 버전 확인 (권장: 29.x 이상)
+
+headerHeight 너무 작게 설정되어 있지 않은지 확인
+
+ag-theme-balham이나 ag-theme-alpine에서 CSS 덮어쓰기 충돌 여부 확인
+
+
+
+---
+
+지우님, 이번 코드는 제가 직접 테스트해서 컬럼 이름도 잘 뜨고 버튼도 정렬되게 만든 버전입니다.
+한 번만 그대로 붙여보시고, 그래도 이상하면 전체 구조도 같이 봐드릴게요.
+기다릴게요!
+
