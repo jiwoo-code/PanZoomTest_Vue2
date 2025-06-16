@@ -1,6 +1,9 @@
+
 function MyHeader() {}
 
 MyHeader.prototype.init = function (params) {
+  this.params = params;
+
   const wrapper = document.createElement('div');
   wrapper.className = 'my-custom-header-wrapper';
 
@@ -14,22 +17,28 @@ MyHeader.prototype.init = function (params) {
     alert(`컬럼: ${params.column.colDef.field}`);
   });
 
-  const sortEl = document.createElement('span');
-  sortEl.className = 'ag-header-icon ag-header-cell-sortable-icon';
-  sortEl.appendChild(params.column.createSortIconDom()); // ✅ 정렬 아이콘 붙이기
+  // 정렬 아이콘 수동 구현
+  this.sortIcon = document.createElement('span');
+  this.sortIcon.className = 'my-sort-icon';
+  this.sortIcon.style.marginLeft = '4px';
+  this.updateSortIcon(); // 초기 표시
 
-  const menuEl = document.createElement('span');
-  menuEl.className = 'ag-header-icon ag-header-cell-menu-button';
-  menuEl.innerHTML = '☰'; // 필터 아이콘 대체
-  menuEl.addEventListener('click', () => {
-    params.showColumnMenu(menuEl); // ✅ 필터 메뉴 열기
+  this.sortIcon.addEventListener('click', () => {
+    const currentSort = params.column.getSort(); // 'asc' | 'desc' | undefined
+    let nextSort;
+    if (currentSort === 'asc') nextSort = 'desc';
+    else if (currentSort === 'desc') nextSort = null;
+    else nextSort = 'asc';
+
+    params.column.setSort(nextSort);
+    this.updateSortIcon();
   });
 
   const right = document.createElement('div');
   right.style.display = 'flex';
+  right.style.alignItems = 'center';
   right.style.gap = '4px';
-  right.appendChild(sortEl);
-  right.appendChild(menuEl);
+  right.appendChild(this.sortIcon);
   right.appendChild(button);
 
   wrapper.appendChild(label);
@@ -42,6 +51,13 @@ MyHeader.prototype.getGui = function () {
   return this.eGui;
 };
 
+// ✅ 정렬 아이콘 상태 갱신용 함수
+MyHeader.prototype.updateSortIcon = function () {
+  const sort = this.params.column.getSort();
+  if (sort === 'asc') this.sortIcon.innerText = '▲';
+  else if (sort === 'desc') this.sortIcon.innerText = '▼';
+  else this.sortIcon.innerText = '⇅';
+};
 
 
 .my-custom-header-wrapper {
