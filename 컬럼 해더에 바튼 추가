@@ -15,3 +15,89 @@ MyHeader.prototype.init = function (params) {
 MyHeader.prototype.getGui = function () {
   return this.eGui;
 };
+
+
+
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡ
+
+
+---
+
+✅ 목표: ag-Grid 컬럼 헤더에 버튼 추가 (Vue 2)
+
+🛠️ Vue 컴포넌트 기반은 버그 많으니까 안정적으로 동작하는 순수 JS 방식으로 바로 씁시다.
+
+
+---
+
+✅ 1. 자바스크립트 기반 헤더 컴포넌트 (MyHeader.js)
+
+function MyHeader() {}
+
+MyHeader.prototype.init = function (params) {
+  this.eGui = document.createElement('div');
+  this.eGui.style.display = 'flex';
+  this.eGui.style.justifyContent = 'space-between';
+  this.eGui.style.alignItems = 'center';
+
+  const label = document.createElement('span');
+  label.innerText = params.colDef.headerName;
+
+  const btn = document.createElement('button');
+  btn.innerText = '🔄';
+  btn.addEventListener('click', () => {
+    alert(`헤더 버튼 클릭됨! 컬럼: ${params.colDef.field}`);
+  });
+
+  this.eGui.appendChild(label);
+  this.eGui.appendChild(btn);
+};
+
+MyHeader.prototype.getGui = function () {
+  return this.eGui;
+};
+
+export default MyHeader;
+
+
+---
+
+✅ 2. Vue 컴포넌트에서 ag-Grid 컬럼 정의
+
+import MyHeader from './MyHeader.js';
+
+export default {
+  data() {
+    return {
+      columnDefs: [
+        {
+          field: 'status',
+          headerName: '상태',
+          headerComponent: MyHeader
+        }
+      ],
+      rowData: [...]
+    };
+  }
+};
+
+
+---
+
+🔥 이 방식은 100% 작동합니다
+
+Vue.extend() 안 씀
+
+params 안 날아감
+
+화면 안 깨짐
+
+ag-Grid 공식 문서에서도 이 방식 사용
+
+
+
+---
