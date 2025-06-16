@@ -1,39 +1,77 @@
-function WrappedHeader() {}
+function MyHeader() {}
 
-WrappedHeader.prototype.init = function (params) {
+MyHeader.prototype.init = function (params) {
   this.params = params;
 
-  // 기본 헤더 생성
-  const defaultHeader = document.createElement('ag-grid-vue-header');
-  params.eGridCell.appendChild(defaultHeader);
-  params.column.getColDef().originalHeaderComponent = params.column.getColDef().headerComponent;
+  // 전체 wrapper
+  const eGui = document.createElement('div');
+  eGui.className = 'ag-header-cell-label';
+  eGui.style.display = 'flex';
+  eGui.style.alignItems = 'center';
+  eGui.style.justifyContent = 'space-between';
+  eGui.style.width = '100%';
 
-  // ag-Grid의 기본 헤더 컴포넌트 가져오기
-  const baseHeaderComponent = new params.context.componentWrapper.headerComponent.component();
-  baseHeaderComponent.init(params);
-  const baseGui = baseHeaderComponent.getGui();
-
-  // 커스텀 버튼
-  const button = document.createElement('button');
-  button.innerText = '🔄';
-  button.className = 'my-header-button';
-  button.style.marginRight = '4px';
-  button.addEventListener('click', () => {
-    alert(`컬럼: ${params.column.getColDef().field}`);
+  // 왼쪽: ! 아이콘 버튼
+  const infoButton = document.createElement('button');
+  infoButton.innerText = '❗';
+  infoButton.className = 'my-header-info-btn';
+  infoButton.style.marginRight = '4px';
+  infoButton.style.background = 'none';
+  infoButton.style.border = 'none';
+  infoButton.style.cursor = 'pointer';
+  infoButton.addEventListener('click', (e) => {
+    e.stopPropagation(); // 정렬 방지
+    alert(`이미지 팝업 예정: ${params.column.getColDef().field}`);
   });
 
-  // baseGui 내부에 삽입
-  baseGui.insertBefore(button, baseGui.firstChild);
+  // 컬럼명
+  const label = document.createElement('span');
+  label.className = 'ag-header-cell-text';
+  label.innerText = params.column.getColDef().headerName || params.column.getColDef().field;
 
-  this.eGui = baseGui;
+  // 오른쪽: ag-Grid 내부 정렬/필터 아이콘 (자동으로 작동)
+  const sortOrderIcon = document.createElement('span');
+  sortOrderIcon.className = 'ag-header-icon ag-sort-order';
+
+  const sortAscIcon = document.createElement('span');
+  sortAscIcon.className = 'ag-header-icon ag-sort-ascending-icon';
+
+  const sortDescIcon = document.createElement('span');
+  sortDescIcon.className = 'ag-header-icon ag-sort-descending-icon';
+
+  const menuIcon = document.createElement('span');
+  menuIcon.className = 'ag-header-icon ag-header-cell-menu-button';
+  menuIcon.addEventListener('click', (e) => {
+    e.stopPropagation(); // 정렬 방지
+    params.showColumnMenu(menuIcon);
+  });
+
+  // 내부 컨테이너 구성
+  const leftPart = document.createElement('div');
+  leftPart.style.display = 'flex';
+  leftPart.style.alignItems = 'center';
+  leftPart.appendChild(infoButton);
+  leftPart.appendChild(label);
+
+  const rightPart = document.createElement('div');
+  rightPart.style.display = 'flex';
+  rightPart.style.alignItems = 'center';
+  rightPart.style.gap = '4px';
+  rightPart.appendChild(sortOrderIcon);
+  rightPart.appendChild(sortAscIcon);
+  rightPart.appendChild(sortDescIcon);
+  rightPart.appendChild(menuIcon);
+
+  // 전체 조립
+  eGui.appendChild(leftPart);
+  eGui.appendChild(rightPart);
+
+  this.eGui = eGui;
 };
 
-WrappedHeader.prototype.getGui = function () {
+MyHeader.prototype.getGui = function () {
   return this.eGui;
 };
-
-export default WrappedHeader;
-
 
 
 
