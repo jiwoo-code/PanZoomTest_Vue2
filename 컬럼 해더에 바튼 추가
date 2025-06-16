@@ -96,3 +96,85 @@ MyHeader.prototype.getGui = function () {
   font-size: inherit;
   color: inherit;
 }
+
+
+
+
+
+
+
+
+<!-- MyHeader.vue -->
+<template>
+  <div class="ag-header-cell-label custom-header" @click="onHeaderClick">
+    <!-- 왼쪽 버튼 -->
+    <button class="info-button" @click.stop="onInfoClick">❗</button>
+
+    <!-- 컬럼명 -->
+    <span class="ag-header-cell-text">{{ displayName }}</span>
+
+    <!-- 오른쪽: 정렬/필터 아이콘 -->
+    <span class="ag-header-icon ag-sort-order"></span>
+    <span class="ag-header-icon ag-sort-ascending-icon"></span>
+    <span class="ag-header-icon ag-sort-descending-icon"></span>
+    <span
+      class="ag-header-icon ag-header-cell-menu-button"
+      @click.stop="showMenu"
+    ></span>
+  </div>
+</template>
+
+<script>
+export default {
+  props: ['params'],
+  computed: {
+    displayName() {
+      return this.params.column.getColDef().headerName || this.params.column.getColDef().field;
+    }
+  },
+  methods: {
+    onInfoClick() {
+      alert(`이미지 표시 예정: ${this.params.column.getColDef().field}`);
+    },
+    onHeaderClick() {
+      if (this.params.enableSorting) {
+        this.params.progressSort(); // 정렬 동작 트리거
+      }
+    },
+    showMenu(event) {
+      this.params.showColumnMenu(event.currentTarget);
+    }
+  }
+};
+</script>
+
+<style scoped>
+.custom-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.info-button {
+  margin-right: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: inherit;
+  color: inherit;
+}
+</style>
+
+
+columnDefs: [
+  {
+    field: 'status',
+    headerName: '상태',
+    headerComponentFramework: MyHeader, // ✅ Vue 컴포넌트로 설정
+    sortable: true,
+    filter: true
+  }
+]
