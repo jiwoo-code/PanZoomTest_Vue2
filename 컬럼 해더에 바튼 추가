@@ -1,59 +1,38 @@
-function MyHeader() {}
+function WrappedHeader() {}
 
-MyHeader.prototype.init = function (params) {
+WrappedHeader.prototype.init = function (params) {
   this.params = params;
 
-  // 전체 wrapper
-  const eGui = document.createElement('div');
-  eGui.className = 'ag-header-cell-label'; // 핵심 클래스: 기본 스타일 유지
+  // 기본 헤더 생성
+  const defaultHeader = document.createElement('ag-grid-vue-header');
+  params.eGridCell.appendChild(defaultHeader);
+  params.column.getColDef().originalHeaderComponent = params.column.getColDef().headerComponent;
 
-  // ✅ [1] 커스텀 버튼 (왼쪽)
-  const customBtn = document.createElement('button');
-  customBtn.innerText = '🔄';
-  customBtn.className = 'my-header-button';
-  customBtn.addEventListener('click', () => {
-    alert(`컬럼: ${params.column.colDef.field}`);
+  // ag-Grid의 기본 헤더 컴포넌트 가져오기
+  const baseHeaderComponent = new params.context.componentWrapper.headerComponent.component();
+  baseHeaderComponent.init(params);
+  const baseGui = baseHeaderComponent.getGui();
+
+  // 커스텀 버튼
+  const button = document.createElement('button');
+  button.innerText = '🔄';
+  button.className = 'my-header-button';
+  button.style.marginRight = '4px';
+  button.addEventListener('click', () => {
+    alert(`컬럼: ${params.column.getColDef().field}`);
   });
 
-  // ✅ [2] 컬럼 이름
-  const label = document.createElement('span');
-  label.className = 'ag-header-cell-text';
-  label.innerText = params.column.colDef.headerName || params.column.colDef.field;
+  // baseGui 내부에 삽입
+  baseGui.insertBefore(button, baseGui.firstChild);
 
-  // ✅ [3] 정렬/필터 영역 (기본 아이콘은 ag-Grid 내부가 채움)
-  const sortOrderIcon = document.createElement('span');
-  sortOrderIcon.className = 'ag-header-icon ag-sort-order';
-
-  const sortAscIcon = document.createElement('span');
-  sortAscIcon.className = 'ag-header-icon ag-sort-ascending-icon';
-
-  const sortDescIcon = document.createElement('span');
-  sortDescIcon.className = 'ag-header-icon ag-sort-descending-icon';
-
-  const menuIcon = document.createElement('span');
-  menuIcon.className = 'ag-header-icon ag-header-cell-menu-button';
-  menuIcon.style.marginLeft = '8px'; // ✅ 필터 버튼 마진
-
-  // 필터 메뉴 열기
-  menuIcon.addEventListener('click', (e) => {
-    e.stopPropagation(); // 정렬 트리거 방지
-    params.showColumnMenu(menuIcon);
-  });
-
-  // 순서대로 구성 (왼쪽 버튼 → 컬럼명 → 정렬/필터)
-  eGui.appendChild(customBtn);
-  eGui.appendChild(label);
-  eGui.appendChild(sortOrderIcon);
-  eGui.appendChild(sortAscIcon);
-  eGui.appendChild(sortDescIcon);
-  eGui.appendChild(menuIcon);
-
-  this.eGui = eGui;
+  this.eGui = baseGui;
 };
 
-MyHeader.prototype.getGui = function () {
+WrappedHeader.prototype.getGui = function () {
   return this.eGui;
 };
+
+export default WrappedHeader;
 
 
 
