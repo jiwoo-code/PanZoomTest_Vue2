@@ -1,63 +1,61 @@
-
 function MyHeader() {}
 
 MyHeader.prototype.init = function (params) {
   this.params = params;
 
-  const wrapper = document.createElement('div');
-  wrapper.className = 'my-custom-header-wrapper';
+  const eGui = document.createElement('div');
+  eGui.className = 'my-custom-header-wrapper';
 
-  const label = document.createElement('span');
-  label.innerText = params.column.colDef.headerName || params.column.colDef.field;
+  // 👉 정렬/필터 아이콘 영역
+  const iconsContainer = document.createElement('span');
+  iconsContainer.className = 'ag-header-cell-label';
 
-  const button = document.createElement('button');
-  button.innerText = '🔄';
-  button.className = 'my-header-button';
-  button.addEventListener('click', () => {
+  // ag-Grid가 자동으로 스타일 주는 내부 구조 복사
+  const labelContainer = document.createElement('span');
+  labelContainer.className = 'ag-header-cell-text';
+  labelContainer.innerText = params.column.colDef.headerName || params.column.colDef.field;
+
+  const iconSortOrder = document.createElement('span');
+  iconSortOrder.className = 'ag-header-icon ag-sort-order';
+
+  const iconSortAsc = document.createElement('span');
+  iconSortAsc.className = 'ag-header-icon ag-sort-ascending-icon';
+
+  const iconSortDesc = document.createElement('span');
+  iconSortDesc.className = 'ag-header-icon ag-sort-descending-icon';
+
+  const iconMenu = document.createElement('span');
+  iconMenu.className = 'ag-header-icon ag-header-cell-menu-button';
+  iconMenu.innerText = '☰';
+  iconMenu.addEventListener('click', () => {
+    params.showColumnMenu(iconMenu);
+  });
+
+  // 버튼
+  const customBtn = document.createElement('button');
+  customBtn.innerText = '🔄';
+  customBtn.className = 'my-header-button';
+  customBtn.addEventListener('click', () => {
     alert(`컬럼: ${params.column.colDef.field}`);
   });
 
-  // 정렬 아이콘 수동 구현
-  this.sortIcon = document.createElement('span');
-  this.sortIcon.className = 'my-sort-icon';
-  this.sortIcon.style.marginLeft = '4px';
-  this.updateSortIcon(); // 초기 표시
+  // ag 기본 구조처럼 조합
+  iconsContainer.appendChild(labelContainer);
+  iconsContainer.appendChild(iconSortOrder);
+  iconsContainer.appendChild(iconSortAsc);
+  iconsContainer.appendChild(iconSortDesc);
+  iconsContainer.appendChild(iconMenu);
+  iconsContainer.appendChild(customBtn);
 
-  this.sortIcon.addEventListener('click', () => {
-    const currentSort = params.column.getSort(); // 'asc' | 'desc' | undefined
-    let nextSort;
-    if (currentSort === 'asc') nextSort = 'desc';
-    else if (currentSort === 'desc') nextSort = null;
-    else nextSort = 'asc';
+  eGui.appendChild(iconsContainer);
 
-    params.column.setSort(nextSort);
-    this.updateSortIcon();
-  });
-
-  const right = document.createElement('div');
-  right.style.display = 'flex';
-  right.style.alignItems = 'center';
-  right.style.gap = '4px';
-  right.appendChild(this.sortIcon);
-  right.appendChild(button);
-
-  wrapper.appendChild(label);
-  wrapper.appendChild(right);
-
-  this.eGui = wrapper;
+  this.eGui = eGui;
 };
 
 MyHeader.prototype.getGui = function () {
   return this.eGui;
 };
 
-// ✅ 정렬 아이콘 상태 갱신용 함수
-MyHeader.prototype.updateSortIcon = function () {
-  const sort = this.params.column.getSort();
-  if (sort === 'asc') this.sortIcon.innerText = '▲';
-  else if (sort === 'desc') this.sortIcon.innerText = '▼';
-  else this.sortIcon.innerText = '⇅';
-};
 
 
 .my-custom-header-wrapper {
