@@ -38,3 +38,33 @@ public class AServiceImpl implements AService {
         return info;
     }
 }
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+@Service
+@RequiredArgsConstructor
+public class AServiceImpl implements AService {
+
+    private final BService bService;
+
+    public InfoVO getInfo(String id) {
+        List<FirstResultVO> firstList = bService.getDbList(id);
+        Map<String, Object> secondMap = bService.getApiData(id);
+
+        boolean success = 
+            firstList != null && !firstList.isEmpty() &&
+            secondMap != null && !secondMap.isEmpty();
+
+        InfoVO info = new InfoVO();
+        info.setFirstList(firstList);
+        info.setSecondMap(secondMap);
+        info.setSuccess(success);
+
+        return info;
+    }
+}
