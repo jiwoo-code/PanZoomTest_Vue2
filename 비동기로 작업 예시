@@ -1,0 +1,102 @@
+
+---
+
+✅ 1. BService 구조 정의
+
+📌 BService 인터페이스
+
+public interface BService {
+    @Async
+    CompletableFuture<String> getNameAsync(String id);
+
+    @Async
+    CompletableFuture<Integer> getScoreAsync(String id);
+}
+
+📌 BServiceImpl 구현
+
+@Service
+public class BServiceImpl implements BService {
+
+    @Async
+    public CompletableFuture<String> getNameAsync(String id) {
+        // 예시: DB or 외부 API 호출
+        return CompletableFuture.completedFuture("지우");
+    }
+
+    @Async
+    public CompletableFuture<Integer> getScoreAsync(String id) {
+        return CompletableFuture.completedFuture(95);
+    }
+}
+
+> @Async를 쓰기 위해선 @EnableAsync가 필요합니다 (아래 참고).
+
+
+
+
+---
+
+✅ 2. AServiceImpl에서 비동기 호출
+
+📌 리턴용 VO
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class UserInfoVO {
+    private String name;
+    private Integer score;
+}
+
+📌 AServiceImpl 구현
+
+@Service
+@RequiredArgsConstructor
+public class AServiceImpl implements AService {
+
+    private final BService bService;
+
+    public UserInfoVO getUserInfo(String id) throws Exception {
+        CompletableFuture<String> nameFuture = bService.getNameAsync(id);
+        CompletableFuture<Integer> scoreFuture = bService.getScoreAsync(id);
+
+        // 두 작업이 모두 끝날 때까지 기다림
+        CompletableFuture.allOf(nameFuture, scoreFuture).join();
+
+        // 결과 조합
+        String name = nameFuture.get();
+        Integer score = scoreFuture.get();
+
+        return new UserInfoVO(name, score);
+    }
+}
+
+
+---
+
+✅ 3. 설정에 추가: @EnableAsync
+
+Spring Boot에서 @Async를 활성화하려면:
+
+@Configuration
+@EnableAsync
+public class AsyncConfig {
+}
+
+
+---
+
+🧪 결과 예시
+
+{
+  "name": "지우",
+  "score": 95
+}
+
+
+---
+
+✅ 참고사항
+
+내부적으로 @Async는 TaskExecutor (기본: SimpleAsyncTaskExecutor) 를 사용하므로, 동시성 성능을 높이려면 @Bean 등록해서 ThreadPoolTaskExecutor로 튜닝 가능
