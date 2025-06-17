@@ -1,0 +1,40 @@
+@Service
+@RequiredArgsConstructor
+public class AServiceImpl implements AService {
+
+    private final BService bService;
+
+    public InfoVO getInfo(String id) {
+        InfoVO info = new InfoVO();
+        boolean success = true;
+
+        try {
+            List<FirstResultVO> firstList = bService.getDbList(id);
+            if (firstList == null || firstList.isEmpty()) {
+                success = false;
+            }
+            info.setFirstList(firstList);
+        } catch (Exception e) {
+            success = false;
+            info.setFirstList(Collections.emptyList());
+            // 필요 시 로그 처리
+            System.err.println("DB 조회 오류: " + e.getMessage());
+        }
+
+        try {
+            Map<String, Object> resultMap = bService.getApiData(id);
+            if (resultMap == null || resultMap.isEmpty()) {
+                success = false;
+            }
+            info.setSecondMap(resultMap);
+        } catch (Exception e) {
+            success = false;
+            info.setSecondMap(Collections.emptyMap());
+            // 필요 시 로그 처리
+            System.err.println("API 호출 오류: " + e.getMessage());
+        }
+
+        info.setSuccess(success);
+        return info;
+    }
+}
