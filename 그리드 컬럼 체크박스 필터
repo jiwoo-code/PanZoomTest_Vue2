@@ -14,12 +14,16 @@ export class CheckboxFilter {
     this.eGui = document.createElement('div');
     this.eGui.className = 'checkbox-filter-container';
     this.eGui.style.cssText = `
-      padding: 10px;
+      padding: 12px;
       max-height: 300px;
       overflow-y: auto;
-      min-width: 200px;
-      font-family: Arial, sans-serif;
-      font-size: 13px;
+      min-width: 220px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+      font-size: 12px;
+      background: #ffffff;
+      border: 1px solid #babfc7;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-radius: 2px;
     `;
 
     // 컬럼의 모든 고유값 추출
@@ -37,7 +41,8 @@ export class CheckboxFilter {
     
     this.filterParams.api.forEachNode(node => {
       if (node.data) {
-        const value = this.filterParams.valueGetter(node);
+        const colId = this.filterParams.colDef.field;
+        const value = node.data[colId];
         if (value !== null && value !== undefined && value !== '') {
           values.add(value);
         }
