@@ -90,3 +90,82 @@ export default {
   filter: CheckboxFilter, // 위에서 만든 컴포넌트 등록
   filterParams: {} // 필요 시 추가
 }
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+// CheckboxFilter.vue <template>
+
+  <div class="custom-filter">
+    <label v-for="option in uniqueValues" :key="option" class="filter-option">
+      <input type="checkbox" :value="option" v-model="checkedValues" />
+      {{ option }}
+    </label>
+  </div>
+</template><script>
+export default {
+  props: ['values', 'onFilterChanged'],
+  data() {
+    return {
+      checkedValues: []
+    };
+  },
+  computed: {
+    uniqueValues() {
+      return [...new Set(this.values)].filter(v => v != null);
+    }
+  },
+  watch: {
+    checkedValues() {
+      this.onFilterChanged(this.checkedValues);
+    }
+  }
+};
+</script><style scoped>
+.custom-filter {
+  display: flex;
+  flex-direction: column;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.filter-option {
+  margin: 2px 0;
+}
+</style>
+
+
+
+
+
+
+// grid.vue
+import CheckboxFilter from './CheckboxFilter.vue';
+
+export default {
+  components: { CheckboxFilter },
+  data() {
+    return {
+      columnDefs: [
+        {
+          headerName: 'Category',
+          field: 'category',
+          filter: true,
+          filterFramework: CheckboxFilter,
+          filterParams: {
+            values: (params) => {
+              const values = params.api.getDisplayedRowAtIndex(0).data.category;
+              params.success([values]);
+            },
+            onFilterChanged: function (selected) {
+              params.api.setQuickFilter(selected.join(' '));
+            }
+          }
+        }
+      ]
+    };
+  }
+};
