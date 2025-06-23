@@ -1,0 +1,92 @@
+<template>
+  <div class="checkbox-filter">
+    <div v-for="option in uniqueValues" :key="option" class="checkbox-option">
+      <label>
+        <input
+          type="checkbox"
+          :value="option"
+          v-model="selectedValues"
+          @change="onSelectionChanged"
+        />
+        {{ option }}
+      </label>
+    </div>
+  </div>
+</template><script>
+export default {
+  name: 'CheckboxFilter',
+  data() {
+    return {
+      params: null,
+      uniqueValues: [],
+      selectedValues: []
+    };
+  },
+  methods: {
+    init(params) {
+      this.params = params;
+      const allValues = params.api.getModel().rowsToDisplay.map(row => {
+        return row.data?.[params.colDef.field];
+      });
+      this.uniqueValues = [...new Set(allValues)].filter(v => v != null).sort();
+    },
+    doesFilterPass(params) {
+      const value = this.params.valueGetter(params);
+      return this.selectedValues.includes(value);
+    },
+    isFilterActive() {
+      return this.selectedValues.length > 0;
+    },
+    getModel() {
+      return this.isFilterActive() ? { values: this.selectedValues } : null;
+    },
+    setModel(model) {
+      this.selectedValues = model ? model.values : [];
+    },
+    onSelectionChanged() {
+      this.params.filterChangedCallback();
+    }
+  }
+};
+</script><style scoped>
+.checkbox-filter {
+  padding: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.checkbox-option {
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+</style>
+
+
+
+import CheckboxFilter from './CheckboxFilter.vue';
+
+export default {
+  components: { CheckboxFilter },
+  data() {
+    return {
+      columnDefs: [
+        {
+          headerName: '상태',
+          field: 'status',
+          filter: CheckboxFilter
+        },
+        // ...다른 컬럼
+      ],
+      rowData: [ /* 데이터 */ ]
+    };
+  }
+};
+
+
+
+// gridOptions 혹은 columnDefs 안에서
+{
+  headerName: '컬럼명',
+  field: '필드명',
+  filter: CheckboxFilter, // 위에서 만든 컴포넌트 등록
+  filterParams: {} // 필요 시 추가
+}
