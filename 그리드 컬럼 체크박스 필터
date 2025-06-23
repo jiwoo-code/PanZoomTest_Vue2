@@ -56,20 +56,26 @@ export class CheckboxFilter {
     // 전체 선택/해제 체크박스
     const selectAllContainer = document.createElement('div');
     selectAllContainer.style.cssText = `
-      padding: 5px 0;
-      border-bottom: 1px solid #ddd;
-      margin-bottom: 5px;
-      font-weight: bold;
+      padding: 4px 0 8px 0;
+      border-bottom: 1px solid #BDC3C7;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #212529;
     `;
 
     this.selectAllCheckbox = document.createElement('input');
     this.selectAllCheckbox.type = 'checkbox';
     this.selectAllCheckbox.checked = true;
-    this.selectAllCheckbox.style.marginRight = '8px';
+    this.selectAllCheckbox.style.marginRight = '6px';
+    this.selectAllCheckbox.style.transform = 'scale(0.9)';
 
     const selectAllLabel = document.createElement('label');
     selectAllLabel.textContent = '전체 선택';
-    selectAllLabel.style.cursor = 'pointer';
+    selectAllLabel.style.cssText = `
+      cursor: pointer;
+      color: #212529;
+      font-size: 12px;
+    `;
 
     selectAllLabel.addEventListener('click', (e) => {
       e.preventDefault();
@@ -88,22 +94,29 @@ export class CheckboxFilter {
     this.uniqueValues.forEach(value => {
       const checkboxContainer = document.createElement('div');
       checkboxContainer.style.cssText = `
-        padding: 3px 0;
+        padding: 2px 0;
         display: flex;
         align-items: center;
+        min-height: 20px;
       `;
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = true;
-      checkbox.style.marginRight = '8px';
+      checkbox.style.cssText = `
+        margin-right: 6px;
+        transform: scale(0.9);
+      `;
 
       const label = document.createElement('label');
-      label.textContent = value;
+      label.textContent = String(value);
       label.style.cssText = `
         cursor: pointer;
         flex: 1;
         word-break: break-word;
+        color: #495057;
+        font-size: 12px;
+        line-height: 1.4;
       `;
 
       label.addEventListener('click', (e) => {
@@ -227,7 +240,8 @@ export class CheckboxFilter {
   }
 
   doesFilterPass(params) {
-    const value = this.filterParams.valueGetter(params.node);
+    const colId = this.filterParams.colDef.field;
+    const value = String(params.data[colId]); // 문자열로 변환하여 비교
     return this.selectedValues.has(value);
   }
 
