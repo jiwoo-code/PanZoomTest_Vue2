@@ -43,13 +43,17 @@ export class CheckboxFilter {
       if (node.data && node.data[colId] !== null && node.data[colId] !== undefined) {
         const value = node.data[colId];
         if (value !== '') {
-          values.add(String(value)); // 문자열로 변환하여 저장
+          values.add(String(value));
         }
       }
     });
     
     this.uniqueValues = Array.from(values).sort();
-    console.log('Extracted unique values:', this.uniqueValues); // 디버깅용
+    console.log('Extracted unique values:', this.uniqueValues);
+    
+    if (this.uniqueValues.length === 0) {
+      console.warn('No unique values found for field:', colId);
+    }
   }
 
   createFilterUI() {
@@ -80,6 +84,7 @@ export class CheckboxFilter {
 
     selectAllLabel.addEventListener('click', (e) => {
       e.preventDefault();
+      this.selectAllCheckbox.checked = !this.selectAllCheckbox.checked;
       this.toggleSelectAll();
     });
 
@@ -141,44 +146,90 @@ export class CheckboxFilter {
     // 버튼 컨테이너
     const buttonContainer = document.createElement('div');
     buttonContainer.style.cssText = `
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid #ddd;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #d4d4d4;
       display: flex;
-      gap: 5px;
+      gap: 4px;
     `;
 
     // 적용 버튼
     const applyButton = document.createElement('button');
     applyButton.textContent = '적용';
     applyButton.style.cssText = `
-      padding: 5px 15px;
-      background: #007acc;
-      color: white;
-      border: none;
-      border-radius: 3px;
+      padding: 4px 12px;
+      background-color: #333 !important;
+      color: #fff !important;
+      border: 1px solid #333 !important;
+      border-radius: 2px;
       cursor: pointer;
       font-size: 12px;
+      font-weight: normal;
     `;
-    applyButton.addEventListener('click', () => {
+    
+    applyButton.onmouseenter = () => {
+      applyButton.style.backgroundColor = '#555';
+      applyButton.style.borderColor = '#555';
+    };
+    
+    applyButton.onmouseleave = () => {
+      applyButton.style.backgroundColor = '#333';
+      applyButton.style.borderColor = '#333';
+    };
+    
+    applyButton.onclick = () => {
+      console.log('Apply button clicked');
       this.filterParams.filterChangedCallback();
-    });
+      
+      // 여러 방법으로 팝업 닫기 시도
+      setTimeout(() => {
+        if (this.filterParams.api) {
+          if (this.filterParams.api.hidePopupMenu) {
+            this.filterParams.api.hidePopupMenu();
+          }
+          
+          // ESC 키 이벤트 발생
+          document.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Escape',
+            keyCode: 27,
+            which: 27,
+            bubbles: true
+          }));
+          
+          // 클릭 이벤트로 외부 클릭 시뮬레이션
+          setTimeout(() => {
+            document.body.click();
+          }, 50);
+        }
+      }, 100);
+    };
 
     // 초기화 버튼
     const resetButton = document.createElement('button');
     resetButton.textContent = '초기화';
     resetButton.style.cssText = `
-      padding: 5px 15px;
-      background: #6c757d;
-      color: white;
-      border: none;
-      border-radius: 3px;
+      padding: 4px 12px;
+      background-color: #fff !important;
+      color: #333 !important;
+      border: 1px solid #ccc !important;
+      border-radius: 2px;
       cursor: pointer;
       font-size: 12px;
+      font-weight: normal;
     `;
-    resetButton.addEventListener('click', () => {
+    
+    resetButton.onmouseenter = () => {
+      resetButton.style.backgroundColor = '#f5f5f5';
+    };
+    
+    resetButton.onmouseleave = () => {
+      resetButton.style.backgroundColor = '#fff';
+    };
+    
+    resetButton.onclick = () => {
+      console.log('Reset button clicked');
       this.resetFilter();
-    });
+    };
 
     buttonContainer.appendChild(applyButton);
     buttonContainer.appendChild(resetButton);
@@ -198,9 +249,6 @@ export class CheckboxFilter {
     this.valueCheckboxes.forEach((checkbox, value) => {
       checkbox.checked = isChecked;
     });
-
-    // 필터 미리보기 제거 - 버튼 클릭할 때만 적용
-    // this.filterParams.filterChangedCallback();
   }
 
   toggleValue(value, isChecked) {
@@ -212,9 +260,6 @@ export class CheckboxFilter {
 
     // 전체 선택 체크박스 상태 업데이트
     this.updateSelectAllCheckbox();
-    
-    // 필터 미리보기 제거 - 버튼 클릭할 때만 적용
-    // this.filterParams.filterChangedCallback();
   }
 
   updateSelectAllCheckbox() {
@@ -254,7 +299,6 @@ export class CheckboxFilter {
       ? String(params.data[colId]) 
       : '';
     
-    console.log('Filtering value:', value, 'Selected values:', Array.from(this.selectedValues));
     return this.selectedValues.has(value);
   }
 
@@ -292,7 +336,7 @@ export class CheckboxFilter {
 <template>
   <div>
     <ag-grid-vue
-      class="ag-theme-alpine"
+      class="ag-theme-balham"
       :columnDefs="columnDefs"
       :rowData="rowData"
       :gridOptions="gridOptions"
