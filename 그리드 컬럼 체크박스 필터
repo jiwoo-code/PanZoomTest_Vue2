@@ -1,284 +1,320 @@
-<template>
-  <div class="checkbox-filter">
-    <div class="filter-search-wrapper">
-      <input
-        type="text"
-        v-model="filterText"
-        placeholder="검색..."
-        @input="onSearchInput"
-        class="filter-search-input"
-      />
-    </div>
-    <div class="filter-list-wrapper">
-      <div class="filter-item">
-        <label>
-          <input type="checkbox" @change="toggleSelectAll" :checked="isAllSelected" />
-          (전체 선택)
-        </label>
-      </div>
-      <div v-for="value in filteredValues" :key="value" class="filter-item">
-        <label>
-          <input
-            type="checkbox"
-            :value="value"
-            :checked="isSelected(value)"
-            @change="onValueChange(value, $event)"
-          />
-          {{ value }}
-        </label>
-      </div>
-    </div>
-  </div>
-</template>
+// CheckboxFilter.js - 체크박스 필터 클래스
+export class CheckboxFilter {
+  constructor() {
+    this.uniqueValues = [];
+    this.selectedValues = new Set();
+    this.filterParams = null;
+    this.eGui = null;
+    this.selectAllCheckbox = null;
+    this.valueCheckboxes = new Map();
+  }
 
-<script>
-export default {
-  name: 'CheckboxFilter',
-  data() {
-    return {
-      params: null,
-      allValues: [], // 이 컬럼의 모든 고유 값
-      selectedValues: new Set(), // 현재 선택된 값들
-      filterText: '', // 검색창의 텍스트
-    };
-  },
-  computed: {
-    // 검색창에 입력된 텍스트로 필터링된 값 목록
-    filteredValues() {
-      if (!this.filterText) {
-        return this.allValues;
-      }
-      return this.allValues.filter(value =>
-        String(value).toLowerCase().includes(this.filterText.toLowerCase())
-      );
-    },
-    // 전체 선택 체크박스의 상태
-    isAllSelected() {
-        return this.allValues.length > 0 && this.allValues.length === this.selectedValues.size;
-    }
-  },
-  methods: {
-    // 1. AG-Grid가 필터를 초기화할 때 호출
-    init(params) {
-      this.params = params;
-      this.allValues = this.getUniqueValues(params);
-      // 초기에는 아무것도 선택되지 않은 상태로 시작하거나,
-      // setModel에서 전달된 값으로 초기화합니다.
-    },
+  init(params) {
+    this.filterParams = params;
+    this.eGui = document.createElement('div');
+    this.eGui.className = 'checkbox-filter-container';
+    this.eGui.style.cssText = `
+      padding: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      min-width: 200px;
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+    `;
 
-    // 필터의 UI를 반환 (Vue에서는 this.$el)
-    getGui() {
-      return this.$el;
-    },
+    // 컬럼의 모든 고유값 추출
+    this.extractUniqueValues();
+    
+    // 처음에는 모든 값이 선택된 상태로 초기화
+    this.selectedValues = new Set(this.uniqueValues);
+    
+    // UI 생성
+    this.createFilterUI();
+  }
 
-    // 필터가 활성화 상태인지 AG-Grid에 알림
-    isFilterActive() {
-      return this.selectedValues.size > 0;
-    },
-
-    // 각 행(row)이 필터 조건을 통과하는지 여부를 결정
-    doesFilterPass(params) {
-      const value = this.params.valueGetter(params.node);
-      return this.selectedValues.has(value);
-    },
-
-    // 현재 필터 상태를 저장 (나중에 setModel로 복원 가능)
-    getModel() {
-      if (this.selectedValues.size === 0) {
-        return null;
-      }
-      return { values: Array.from(this.selectedValues) };
-    },
-
-    // getModel에서 저장된 상태로 필터를 복원
-    setModel(model) {
-      if (model && model.values) {
-        this.selectedValues = new Set(model.values);
-      } else {
-        this.selectedValues = new Set();
-      }
-      // Vue의 반응성을 위해 강제로 업데이트
-      this.$forceUpdate();
-    },
-
-    // 필터 상태가 변경될 때마다 AG-Grid에 알려주는 핵심 메소드
-    notifyGrid() {
-      // 이 함수를 호출해야 그리드가 다시 필터링을 수행합니다.
-      this.params.filterChangedCallback();
-    },
-
-    // --- 컴포넌트 내부 헬퍼 메소드 ---
-
-    // 데이터에서 고유 값을 추출하고 정렬
-    getUniqueValues(params) {
-      const values = new Set();
-      params.api.forEachNode(node => {
-        const value = params.valueGetter(node);
-        if (value !== null && value !== undefined) {
+  extractUniqueValues() {
+    const values = new Set();
+    
+    this.filterParams.api.forEachNode(node => {
+      if (node.data) {
+        const value = this.filterParams.valueGetter(node);
+        if (value !== null && value !== undefined && value !== '') {
           values.add(value);
         }
-      });
-      return Array.from(values).sort();
-    },
-
-    // 개별 체크박스 선택/해제
-    onValueChange(value, event) {
-      if (event.target.checked) {
-        this.selectedValues.add(value);
-      } else {
-        this.selectedValues.delete(value);
       }
-      this.notifyGrid();
-    },
+    });
     
-    // 전체 선택/해제
-    toggleSelectAll(event) {
-      if (event.target.checked) {
-        this.selectedValues = new Set(this.allValues);
-      } else {
-        this.selectedValues = new Set();
-      }
-      this.notifyGrid();
-    },
+    this.uniqueValues = Array.from(values).sort();
+  }
 
-    isSelected(value) {
-      return this.selectedValues.has(value);
-    },
+  createFilterUI() {
+    // 전체 선택/해제 체크박스
+    const selectAllContainer = document.createElement('div');
+    selectAllContainer.style.cssText = `
+      padding: 5px 0;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 5px;
+      font-weight: bold;
+    `;
 
-    onSearchInput() {
-      // 검색 입력에 대한 별도 로직이 필요하다면 여기에 추가
-      // (현재는 computed 속성으로 처리되므로 별도 로직 불필요)
-    },
+    this.selectAllCheckbox = document.createElement('input');
+    this.selectAllCheckbox.type = 'checkbox';
+    this.selectAllCheckbox.checked = true;
+    this.selectAllCheckbox.style.marginRight = '8px';
 
-    // (선택사항) 새로운 데이터가 로드되면 필터 값 목록을 갱신
-    onNewRowsLoaded() {
-        this.allValues = this.getUniqueValues(this.params);
-    },
+    const selectAllLabel = document.createElement('label');
+    selectAllLabel.textContent = '전체 선택';
+    selectAllLabel.style.cursor = 'pointer';
 
-    // (선택사항) 컴포넌트 파괴시 로직
-    destroy() {
-      // 이벤트 리스너 등을 해제할 경우 여기에 작성
+    selectAllLabel.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.toggleSelectAll();
+    });
+
+    this.selectAllCheckbox.addEventListener('change', () => {
+      this.toggleSelectAll();
+    });
+
+    selectAllContainer.appendChild(this.selectAllCheckbox);
+    selectAllContainer.appendChild(selectAllLabel);
+    this.eGui.appendChild(selectAllContainer);
+
+    // 각 값별 체크박스
+    this.uniqueValues.forEach(value => {
+      const checkboxContainer = document.createElement('div');
+      checkboxContainer.style.cssText = `
+        padding: 3px 0;
+        display: flex;
+        align-items: center;
+      `;
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = true;
+      checkbox.style.marginRight = '8px';
+
+      const label = document.createElement('label');
+      label.textContent = value;
+      label.style.cssText = `
+        cursor: pointer;
+        flex: 1;
+        word-break: break-word;
+      `;
+
+      label.addEventListener('click', (e) => {
+        e.preventDefault();
+        checkbox.checked = !checkbox.checked;
+        this.toggleValue(value, checkbox.checked);
+      });
+
+      checkbox.addEventListener('change', () => {
+        this.toggleValue(value, checkbox.checked);
+      });
+
+      this.valueCheckboxes.set(value, checkbox);
+
+      checkboxContainer.appendChild(checkbox);
+      checkboxContainer.appendChild(label);
+      this.eGui.appendChild(checkboxContainer);
+    });
+
+    // 버튼 컨테이너
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = `
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #ddd;
+      display: flex;
+      gap: 5px;
+    `;
+
+    // 적용 버튼
+    const applyButton = document.createElement('button');
+    applyButton.textContent = '적용';
+    applyButton.style.cssText = `
+      padding: 5px 15px;
+      background: #007acc;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    `;
+    applyButton.addEventListener('click', () => {
+      this.filterParams.filterChangedCallback();
+    });
+
+    // 초기화 버튼
+    const resetButton = document.createElement('button');
+    resetButton.textContent = '초기화';
+    resetButton.style.cssText = `
+      padding: 5px 15px;
+      background: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    `;
+    resetButton.addEventListener('click', () => {
+      this.resetFilter();
+    });
+
+    buttonContainer.appendChild(applyButton);
+    buttonContainer.appendChild(resetButton);
+    this.eGui.appendChild(buttonContainer);
+  }
+
+  toggleSelectAll() {
+    const isChecked = this.selectAllCheckbox.checked;
+    
+    if (isChecked) {
+      this.selectedValues = new Set(this.uniqueValues);
+    } else {
+      this.selectedValues.clear();
     }
-  },
-};
-</script>
 
-<style scoped>
-.checkbox-filter {
-  padding: 8px;
-  font-family: sans-serif;
-  background-color: white;
-  border: 1px solid #ccc;
-  min-width: 200px;
+    // 모든 개별 체크박스 상태 업데이트
+    this.valueCheckboxes.forEach((checkbox, value) => {
+      checkbox.checked = isChecked;
+    });
+
+    this.filterParams.filterChangedCallback();
+  }
+
+  toggleValue(value, isChecked) {
+    if (isChecked) {
+      this.selectedValues.add(value);
+    } else {
+      this.selectedValues.delete(value);
+    }
+
+    // 전체 선택 체크박스 상태 업데이트
+    this.updateSelectAllCheckbox();
+    
+    this.filterParams.filterChangedCallback();
+  }
+
+  updateSelectAllCheckbox() {
+    const allSelected = this.selectedValues.size === this.uniqueValues.length;
+    const noneSelected = this.selectedValues.size === 0;
+    
+    this.selectAllCheckbox.checked = allSelected;
+    this.selectAllCheckbox.indeterminate = !allSelected && !noneSelected;
+  }
+
+  resetFilter() {
+    this.selectedValues = new Set(this.uniqueValues);
+    
+    // 모든 체크박스 체크 상태로 변경
+    this.selectAllCheckbox.checked = true;
+    this.selectAllCheckbox.indeterminate = false;
+    
+    this.valueCheckboxes.forEach(checkbox => {
+      checkbox.checked = true;
+    });
+
+    this.filterParams.filterChangedCallback();
+  }
+
+  getGui() {
+    return this.eGui;
+  }
+
+  doesFilterPass(params) {
+    const value = this.filterParams.valueGetter(params.node);
+    return this.selectedValues.has(value);
+  }
+
+  isFilterActive() {
+    return this.selectedValues.size < this.uniqueValues.length;
+  }
+
+  getModel() {
+    return {
+      selectedValues: Array.from(this.selectedValues)
+    };
+  }
+
+  setModel(model) {
+    if (model && model.selectedValues) {
+      this.selectedValues = new Set(model.selectedValues);
+      
+      // UI 업데이트
+      this.valueCheckboxes.forEach((checkbox, value) => {
+        checkbox.checked = this.selectedValues.has(value);
+      });
+      
+      this.updateSelectAllCheckbox();
+    }
+  }
+
+  destroy() {
+    // 정리 작업
+    this.valueCheckboxes.clear();
+  }
 }
-.filter-search-wrapper {
-  padding-bottom: 8px;
-  border-bottom: 1px solid #ddd;
-}
-.filter-search-input {
-  width: 100%;
-  padding: 4px;
-  box-sizing: border-box;
-}
-.filter-list-wrapper {
-  margin-top: 8px;
-  max-height: 250px;
-  overflow-y: auto;
-}
-.filter-item {
-  margin-bottom: 4px;
-}
-.filter-item label {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-}
-.filter-item input {
-  margin-right: 8px;
-}
-</style>
 
-
-
-
-
-
-
-
-
-
-
+// Vue 컴포넌트에서 사용하는 방법
+/*
 <template>
-  <div style="height: 500px; width: 100%;">
+  <div>
     <ag-grid-vue
-      style="width: 100%; height: 100%;"
       class="ag-theme-alpine"
       :columnDefs="columnDefs"
       :rowData="rowData"
-      :frameworkComponents="frameworkComponents"
-      @grid-ready="onGridReady"
-    >
-    </ag-grid-vue>
+      :gridOptions="gridOptions"
+      style="width: 100%; height: 500px;"
+    />
   </div>
 </template>
 
 <script>
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
-import { AgGridVue } from "ag-grid-vue";
-
-// 1. 방금 만든 커스텀 필터 컴포넌트를 import 합니다.
-import CheckboxFilter from './components/CheckboxFilter.vue';
+import { AgGridVue } from 'ag-grid-vue';
+import { CheckboxFilter } from './CheckboxFilter';
 
 export default {
-  name: 'App',
   components: {
     AgGridVue
   },
   data() {
     return {
-      columnDefs: null,
-      rowData: null,
-      frameworkComponents: null, // 여기에 등록합니다.
-      gridApi: null,
-    }
-  },
-  beforeMount() {
-    // 2. frameworkComponents에 커스텀 필터를 등록합니다.
-    // 'checkBoxFilter' 라는 키(이름)에 CheckboxFilter 컴포넌트를 매핑합니다.
-    this.frameworkComponents = {
-      checkBoxFilter: CheckboxFilter,
+      columnDefs: [
+        {
+          field: 'name',
+          headerName: '이름',
+          filter: CheckboxFilter,
+          filterParams: {
+            // 추가 파라미터가 필요한 경우 여기에 작성
+          }
+        },
+        {
+          field: 'category',
+          headerName: '카테고리',
+          filter: CheckboxFilter
+        },
+        {
+          field: 'status',
+          headerName: '상태',
+          filter: CheckboxFilter
+        }
+      ],
+      rowData: [
+        { name: '홍길동', category: 'A', status: '활성' },
+        { name: '김철수', category: 'B', status: '비활성' },
+        { name: '이영희', category: 'A', status: '활성' },
+        { name: '박민수', category: 'C', status: '대기' },
+        { name: '정수정', category: 'B', status: '활성' }
+      ],
+      gridOptions: {
+        defaultColDef: {
+          sortable: true,
+          filter: true,
+          resizable: true
+        }
+      }
     };
-
-    this.columnDefs = [
-      { headerName: 'Make', field: 'make', sortable: true },
-      {
-        headerName: 'Model',
-        field: 'model',
-        // 3. 컬럼 정의(columnDefs)에서 filter 속성 값으로 위에서 등록한 키('checkBoxFilter')를 사용합니다.
-        filter: 'checkBoxFilter',
-        floatingFilter: true, // 플로팅 필터도 함께 사용하려면 추가
-      },
-      { headerName: 'Price', field: 'price', filter: 'agNumberColumnFilter' }
-    ];
-
-    this.rowData = [
-      { make: 'Toyota', model: 'Celica', price: 35000 },
-      { make: 'Ford', model: 'Mondeo', price: 32000 },
-      { make: 'Porsche', model: 'Boxster', price: 72000 },
-      { make: 'Toyota', model: 'Corolla', price: 29000 },
-      { make: 'Ford', model: 'Focus', price: 25000 },
-      { make: 'Porsche', model: 'Cayman', price: 65000 },
-      { make: 'BMW', model: 'M5', price: 90000 },
-      { make: 'Toyota', model: 'Celica', price: 36000 },
-      { make: 'Ford', model: 'Mondeo', price: 33000 },
-      { make: 'Porsche', model: 'Boxster', price: 74000 },
-    ];
-  },
-  methods: {
-    onGridReady(params) {
-      this.gridApi = params.api;
-    }
   }
-}
+};
 </script>
+*/
