@@ -240,8 +240,17 @@ export class CheckboxFilter {
   }
 
   doesFilterPass(params) {
+    // 모든 값이 선택된 경우 필터를 통과시킴
+    if (this.selectedValues.size === this.uniqueValues.length) {
+      return true;
+    }
+    
     const colId = this.filterParams.colDef.field;
-    const value = String(params.data[colId]); // 문자열로 변환하여 비교
+    const value = params.data && params.data[colId] !== null && params.data[colId] !== undefined 
+      ? String(params.data[colId]) 
+      : '';
+    
+    console.log('Filtering value:', value, 'Selected values:', Array.from(this.selectedValues));
     return this.selectedValues.has(value);
   }
 
