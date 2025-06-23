@@ -199,7 +199,8 @@ export class CheckboxFilter {
       checkbox.checked = isChecked;
     });
 
-    this.filterParams.filterChangedCallback();
+    // 필터 미리보기 제거 - 버튼 클릭할 때만 적용
+    // this.filterParams.filterChangedCallback();
   }
 
   toggleValue(value, isChecked) {
@@ -212,7 +213,8 @@ export class CheckboxFilter {
     // 전체 선택 체크박스 상태 업데이트
     this.updateSelectAllCheckbox();
     
-    this.filterParams.filterChangedCallback();
+    // 필터 미리보기 제거 - 버튼 클릭할 때만 적용
+    // this.filterParams.filterChangedCallback();
   }
 
   updateSelectAllCheckbox() {
