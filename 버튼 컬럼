@@ -3,17 +3,25 @@
 // • cellRendererParams.style  → 추가 인라인 스타일 문자열
 // • Vue 쪽으로만 'cell-button-click' 이벤트 emit
 
-export class CellButtonRenderer {
+export class CellButton {
   /** @param {ICellRendererParams} params */
   init(params) {
     this.params = params;
 
-    /* 1️⃣ <sp-button> 생성 */
-    const btn = document.createElement('sp-button');
+    /* 1️⃣ sp-button이 커스텀 엘리먼트가 아닐 수 있으니 일반 button으로 생성 후 클래스 적용 */
+    const btn = document.createElement('button');
+    btn.className = 'sp-button';  // sp-button 클래스 적용
     btn.setAttribute('small', '');
-    btn.style.height = '24px';
-    btn.style.width = '100%';
-    btn.style.cursor = 'pointer';
+    btn.style.cssText = `
+      height: 24px;
+      width: 100%;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      background: #fff;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+    `;
 
     /* 라벨 지정 */
     const label = params?.colDef?.cellRendererParams?.label || '버튼';
@@ -48,17 +56,29 @@ export class CellButtonRenderer {
         vueComponent = params.api.gridOptionsWrapper.gridOptions.context.componentParent;
       }
 
-      // 방법 3: ag-grid의 부모 엘리먼트에서 Vue 인스턴스 찾기
+      // 방법 4: ag-grid 이벤트 API 사용
       if (!vueComponent) {
-        let element = btn.closest('.ag-root-wrapper');
-        if (element && element.__vue__) {
-          vueComponent = element.__vue__;
+        const gridOptions = params.api.getGridOptions();
+        if (gridOptions.context && gridOptions.context.componentParent) {
+          vueComponent = gridOptions.context.componentParent;
+        }
+      }
+
+      // 방법 5: 직접 부모 DOM에서 Vue 인스턴스 찾기
+      if (!vueComponent) {
+        let parentEl = btn.parentElement;
+        while (parentEl && !vueComponent) {
+          if (parentEl.__vue__) {
+            vueComponent = parentEl.__vue__;
+            break;
+          }
+          parentEl = parentEl.parentElement;
         }
       }
 
       // Vue 컴포넌트를 찾았다면 이벤트 emit
       if (vueComponent && typeof vueComponent.$emit === 'function') {
-        vueComponent.$emit('cell-button-click', {
+        vueComponent.$emit('cellButtonClick', {
           colId: params.column.getColId(),
           data: params.data
         });
@@ -88,7 +108,17 @@ export class CellButtonRenderer {
     const sty = params?.colDef?.cellRendererParams?.style;
     if (sty) {
       // 기존 스타일 초기화 후 다시 적용
-      this.eGui.style.cssText = `height: 24px; width: 100%; cursor: pointer;${sty}`;
+      this.eGui.style.cssText = `
+        height: 24px;
+        width: 100%;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        background: #fff;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+        ${sty}
+      `;
     }
 
     return true;
@@ -117,7 +147,7 @@ gridOptions: {
 {
   field: 'action',
   headerName: 'Action',
-  cellRenderer: CellButtonRenderer,
+  cellRenderer: CellButton,
   cellRendererParams: {
     label: '상세',
     style: 'background:#e91e63; border-color:#e91e63; color:white;'
@@ -138,7 +168,7 @@ methods: {
 
 <template>
   <ag-grid-vue
-    @cell-button-click="onCellButtonClick"
+    @cellButtonClick="onCellButtonClick"
     :gridOptions="gridOptions"
     ...
   />
