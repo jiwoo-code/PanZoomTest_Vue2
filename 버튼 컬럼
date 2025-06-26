@@ -53,3 +53,12 @@ refresh(params) { // rowData 변경 시 라벨 업데이트(옵션) if (params &
 
 destroy() { // 필수 정리 작업 if (this.eGui && this.eGui.parentNode) { this.eGui.parentNode.removeChild(this.eGui); } } }
 
+
+
+
+{
+  field: 'action',
+  headerName: 'Action',
+  cellRenderer: CellButtonRenderer,
+  cellRendererParams: { label: '상세' }   // 컬럼별 맞춤 텍스트
+}
