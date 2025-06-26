@@ -1,97 +1,85 @@
-// CellButtonRenderer.js – 재사용 가능한 ag‑Grid 셀 버튼 렌더러 (<sp-button>)
-// • cellRendererParams.label  → 버튼 텍스트 (기본: '버튼')
-// • cellRendererParams.style  → 추가 인라인 스타일 문자열
-// • Vue 쪽으로만 'cell-button-click' 이벤트 emit
+// CellButton.js – Vue 파일을 .js로 구현한 ag-Grid 셀 버튼 렌더러
+// Vue 파일의 동작을 그대로 JavaScript로 구현
 
 export class CellButton {
   /** @param {ICellRendererParams} params */
   init(params) {
     this.params = params;
 
-    /* 1️⃣ sp-button이 커스텀 엘리먼트가 아닐 수 있으니 일반 button으로 생성 후 클래스 적용 */
-    const btn = document.createElement('button');
-    btn.className = 'sp-button';  // sp-button 클래스 적용
+    // sp-button 엘리먼트 생성
+    const btn = document.createElement('sp-button');
     btn.setAttribute('small', '');
-    btn.style.cssText = `
-      height: 24px;
-      width: 100%;
-      cursor: pointer;
-      border: 1px solid #ccc;
-      background: #fff;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 12px;
-    `;
+    btn.style.height = '24px';
 
-    /* 라벨 지정 */
-    const label = params?.colDef?.cellRendererParams?.label || '버튼';
+    // 라벨 설정 (cellRendererParams.label 또는 빈 문자열)
+    const label = params?.colDef?.cellRendererParams?.label || '';
     btn.textContent = label;
 
-    /* 추가 스타일 주입 */
-    const extra = params?.colDef?.cellRendererParams?.style;
-    if (extra) {
-      btn.style.cssText += `;${extra}`;
+    // 추가 스타일이 있다면 적용
+    const extraStyle = params?.colDef?.cellRendererParams?.style;
+    if (extraStyle) {
+      btn.style.cssText += `;${extraStyle}`;
     }
 
-    /* 2️⃣ 클릭 → Vue componentParent 로 emit (컬럼 ID 포함) */
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      console.log('Button clicked', {
-        colId: params.column.getColId(),
-        data: params.data
-      });
-
-      // Vue 컴포넌트 찾기 (여러 방법으로 시도)
-      let vueComponent = null;
-
-      // 방법 1: context.componentParent
-      if (params.context && params.context.componentParent) {
-        vueComponent = params.context.componentParent;
-      }
-      
-      // 방법 2: gridOptions.context
-      if (!vueComponent && params.api.gridOptionsWrapper.gridOptions.context) {
-        vueComponent = params.api.gridOptionsWrapper.gridOptions.context.componentParent;
-      }
-
-      // 방법 4: ag-grid 이벤트 API 사용
-      if (!vueComponent) {
-        const gridOptions = params.api.getGridOptions();
-        if (gridOptions.context && gridOptions.context.componentParent) {
-          vueComponent = gridOptions.context.componentParent;
-        }
-      }
-
-      // 방법 5: 직접 부모 DOM에서 Vue 인스턴스 찾기
-      if (!vueComponent) {
-        let parentEl = btn.parentElement;
-        while (parentEl && !vueComponent) {
-          if (parentEl.__vue__) {
-            vueComponent = parentEl.__vue__;
-            break;
-          }
-          parentEl = parentEl.parentElement;
-        }
-      }
-
-      // Vue 컴포넌트를 찾았다면 이벤트 emit
-      if (vueComponent && typeof vueComponent.$emit === 'function') {
-        vueComponent.$emit('cellButtonClick', {
-          colId: params.column.getColId(),
-          data: params.data
-        });
-        console.log('Event emitted to Vue component');
-      } else {
-        console.warn('Vue component not found or $emit not available', {
-          context: params.context,
-          vueComponent
-        });
-      }
+    // 클릭 이벤트 처리 - Vue의 onClick 메서드와 동일한 로직
+    btn.addEventListener('click', () => {
+      this.onClick();
     });
 
     this.eGui = btn;
+  }
+
+  // Vue의 onClick 메서드를 JavaScript로 구현
+  onClick() {
+    // Vue 컴포넌트 찾기
+    let vueComponent = this.findVueComponent();
+    
+    if (vueComponent && typeof vueComponent.$emit === 'function') {
+      // Vue 파일과 동일한 이벤트 emit
+      vueComponent.$emit('cellBtnClick', {
+        colId: this.params.column.getColId(),
+        data: this.params.data
+      });
+      console.log('cellBtnClick 이벤트 emit 완료');
+    } else {
+      console.warn('Vue 컴포넌트를 찾을 수 없습니다.');
+    }
+  }
+
+  // Vue 컴포넌트를 찾는 헬퍼 메서드
+  findVueComponent() {
+    // 방법 1: context.componentParent
+    if (this.params.context && this.params.context.componentParent) {
+      return this.params.context.componentParent;
+    }
+
+    // 방법 2: gridOptions에서 찾기
+    try {
+      const gridOptions = this.params.api.getGridOptions();
+      if (gridOptions.context && gridOptions.context.componentParent) {
+        return gridOptions.context.componentParent;
+      }
+    } catch (e) {
+      console.warn('gridOptions 접근 실패:', e);
+    }
+
+    // 방법 3: DOM 트리에서 Vue 인스턴스 찾기
+    let element = this.eGui;
+    while (element && element.parentElement) {
+      element = element.parentElement;
+      if (element.__vue__) {
+        return element.__vue__;
+      }
+      // ag-grid 관련 클래스에서 찾기
+      if (element.classList.contains('ag-root-wrapper') || 
+          element.classList.contains('ag-root')) {
+        if (element.__vue__) {
+          return element.__vue__;
+        }
+      }
+    }
+
+    return null;
   }
 
   getGui() {
@@ -101,24 +89,18 @@ export class CellButton {
   refresh(params) {
     this.params = params;
 
-    /* 라벨 & 스타일 갱신 */
-    const lbl = params?.colDef?.cellRendererParams?.label;
-    if (lbl) this.eGui.textContent = lbl;
+    // 라벨 업데이트
+    const newLabel = params?.colDef?.cellRendererParams?.label || '';
+    if (this.eGui.textContent !== newLabel) {
+      this.eGui.textContent = newLabel;
+    }
 
-    const sty = params?.colDef?.cellRendererParams?.style;
-    if (sty) {
-      // 기존 스타일 초기화 후 다시 적용
-      this.eGui.style.cssText = `
-        height: 24px;
-        width: 100%;
-        cursor: pointer;
-        border: 1px solid #ccc;
-        background: #fff;
-        border-radius: 4px;
-        padding: 4px 8px;
-        font-size: 12px;
-        ${sty}
-      `;
+    // 스타일 업데이트
+    const newStyle = params?.colDef?.cellRendererParams?.style;
+    if (newStyle) {
+      // 기본 스타일 유지하면서 새 스타일 적용
+      this.eGui.style.height = '24px';
+      this.eGui.style.cssText += `;${newStyle}`;
     }
 
     return true;
@@ -126,51 +108,67 @@ export class CellButton {
 
   destroy() {
     if (this.eGui) {
+      // 이벤트 리스너 정리 (메모리 누수 방지)
+      this.eGui.removeEventListener('click', this.onClick);
       this.eGui.remove();
       this.eGui = null;
     }
+    this.params = null;
   }
 }
 
 /* ========== 사용 예 ==========
-Vue 컴포넌트에서:
 
-1. ag-grid 설정 시 context에 Vue 컴포넌트 전달:
-gridOptions: {
-  context: {
-    componentParent: this
-  },
-  // ... 기타 옵션
-}
-
-2. 컬럼 정의:
-{
-  field: 'action',
-  headerName: 'Action',
-  cellRenderer: CellButton,
-  cellRendererParams: {
-    label: '상세',
-    style: 'background:#e91e63; border-color:#e91e63; color:white;'
-  },
-  width: 100,
-  resizable: false,
-  sortable: false
-}
-
-3. Vue 컴포넌트에서 이벤트 리스너:
-methods: {
-  onCellButtonClick(eventData) {
-    console.log('셀 버튼 클릭됨:', eventData);
-    // eventData.colId : 컬럼 ID
-    // eventData.data  : 행 데이터
+1. Vue 컴포넌트에서 ag-grid 설정:
+data() {
+  return {
+    gridOptions: {
+      context: {
+        componentParent: this  // 중요: Vue 컴포넌트 인스턴스 전달
+      },
+      columnDefs: [
+        {
+          field: 'action',
+          headerName: 'Action',
+          cellRenderer: CellButton,
+          cellRendererParams: {
+            label: '상세보기',
+            style: 'background:#1976d2; color:white; border-color:#1976d2;'
+          },
+          width: 120,
+          resizable: false,
+          sortable: false
+        }
+      ]
+    }
   }
 }
 
+2. Vue 템플릿:
 <template>
   <ag-grid-vue
-    @cellButtonClick="onCellButtonClick"
     :gridOptions="gridOptions"
+    @cellBtnClick="onCellBtnClick"
     ...
   />
 </template>
+
+3. 이벤트 핸들러:
+methods: {
+  onCellBtnClick(eventData) {
+    console.log('셀 버튼 클릭:', eventData);
+    console.log('컬럼 ID:', eventData.colId);
+    console.log('행 데이터:', eventData.data);
+    
+    // 원하는 로직 구현
+    if (eventData.colId === 'action') {
+      this.showDetail(eventData.data);
+    }
+  },
+  
+  showDetail(rowData) {
+    // 상세보기 로직
+  }
+}
+
 */
