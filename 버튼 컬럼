@@ -1,206 +1,55 @@
+// CellButtonRenderer.js – 재사용 가능한 ag‑Grid 셀 버튼 렌더러 (순수 JS) //   • cellRendererParams.label 로 버튼 텍스트 지정 (기본: '버튼') //   • 클릭 시 'cell-button-click' 이벤트를 ag‑Grid API & Vue componentParent 로 전파 // // 사용 예시 (columnDefs) // { //   field: 'action', //   headerName: 'Action', //   cellRenderer: CellButtonRenderer, //   cellRendererParams: { label: '상세' } // }
+
+export class CellButtonRenderer { /**
+
+@param {ICellRendererParams} params – ag‑Grid 가 넘겨주는 파라미터 */ init(params) { this.params = params;
 
 
+/* 1️⃣ 버튼 DOM 생성 */
+const btn = document.createElement('button');
+btn.type  = 'button';
+btn.textContent = (params.colDef.cellRendererParams && params.colDef.cellRendererParams.label) || '버튼';
 
----
-
-✅ 전체 구성 요약
-
-구성 요소	설명
-
-히스토리 컬럼 추가	컬럼 정의에 버튼 렌더러 추가
-버튼 클릭 이벤트	클릭된 row의 데이터와 함께 this.$emit()
-팝업	grid.vue에서 showHistoryPopup과 popupData로 상태 제어
-
-
-
----
-
-✅ 1. grid.vue – 히스토리 컬럼 추가
-
-① 컬럼 정의 추가
-
-columnDefs: [
-  // 기존 컬럼들...
-  {
-    headerName: '히스토리',
-    field: 'history',
-    cellRendererFramework: {
-      render: {
-        functional: true,
-        render(h, context) {
-          return h(
-            'button',
-            {
-              on: {
-                click: () => context.parent.$emit('history-click', context.props.data)
-              }
-            },
-            '보기'
-          );
-        }
-      }
-    },
-    width: 100
-  }
-]
-
-※ cellRendererFramework 방식은 Vue2에서 버튼 렌더링에 가장 간단하고 효과적입니다.
-
-
----
-
-✅ 2. grid.vue – 히스토리 팝업 상태 관리
-
-① data() 추가
-
-data() {
-  return {
-    showHistoryPopup: false,
-    historyRowData: null
-  };
-}
-
-② created 또는 mounted에서 이벤트 연결
-
-created() {
-  this.$on('history-click', this.onHistoryClick);
-}
-
-③ methods
-
-methods: {
-  onHistoryClick(rowData) {
-    this.historyRowData = rowData;
-    this.showHistoryPopup = true;
-  },
-  closeHistoryPopup() {
-    this.showHistoryPopup = false;
-    this.historyRowData = null;
-  }
-}
-
-
----
-
-✅ 3. template에 팝업 추가
-
-<Popup v-if="showHistoryPopup" @close="closeHistoryPopup">
-  <div class="popup-content">
-    <h3>히스토리 정보</h3>
-    <pre>{{ historyRowData }}</pre>
-    <button @click="closeHistoryPopup">닫기</button>
-  </div>
-</Popup>
-
-※ Popup 컴포넌트는 간단한 slot + 닫기 기능만 가진 모달로 대체 가능합니다.
-
-
----
-
-✅ 4. 간단한 Popup.vue 예시 (slot 사용)
-
-<template>
-  <div class="popup-overlay">
-    <div class="popup-box">
-      <slot />
-    </div>
-  </div>
-</template>
-
-<script>
-export default {
-  name: 'Popup',
-  methods: {
-    close() {
-      this.$emit('close');
-    }
-  }
-};
-</script>
-
-<style scoped>
-.popup-overlay {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-}
-.popup-box {
-  background: white;
-  padding: 20px;
-  margin: 100px auto;
-  width: 400px;
-  border-radius: 8px;
-}
-</style>
-
-
----
-
-✅ 요약
-
-구성	설명
-
-컬럼 정의	버튼 cellRenderer 추가
-버튼 클릭	this.$emit('history-click', rowData)
-팝업 열기	showHistoryPopup = true, 데이터 전달
-팝업 닫기	@close → 상태 초기화
-
-
-
-
-
-
-ㅡㅡㅡㅡㅡㅡ
-
-
-<template>
-  <div>
-    <ag-grid-vue
-      class="ag-theme-balham"
-      :columnDefs="columnDefs"
-      :rowData="rowData"
-    />
-    <Popup v-if="showHistory" @close="closePopup">
-      <pre>{{ selectedRow }}</pre>
-    </Popup>
-  </div>
-</template>
-
-<script>
-export default {
-  data() {
-    return {
-      showHistory: false,
-      selectedRow: null
-    };
-  },
-  created() {
-    this.$on('history-click', this.onHistoryClick);
-  },
-  methods: {
-    onHistoryClick(rowData) {
-      this.selectedRow = rowData;
-      this.showHistory = true;
-    },
-    closePopup() {
-      this.showHistory = false;
-    }
-  }
-};
-</script>
-
-
-
-
-ㅡㅡㅡㅡㅡㅡㅡㅡㅡ
-
-
-.history-btn {
-  padding: 4px 8px;
-  background-color: #f0f0f0;
-  border: 1px solid #ccc;
-  cursor: pointer;
+/* 기본 스타일 – 필요하면 전역 CSS 로 이동 */
+btn.style.cssText = `
+  padding: 4px 10px;
   font-size: 12px;
-  border-radius: 4px;
+  line-height: 16px;
+  color: #fff;
+  background:#4b70dd;
+  border:1px solid #4b70dd;
+  border-radius:3px;
+  cursor:pointer;
+`;
+
+btn.addEventListener('mouseenter',()=>{
+  btn.style.background = '#3258c4';
+  btn.style.borderColor = '#3258c4';
+});
+btn.addEventListener('mouseleave',()=>{
+  btn.style.background = '#4b70dd';
+  btn.style.borderColor = '#4b70dd';
+});
+
+/* 2️⃣ 클릭 이벤트 – ag‑Grid & Vue 양쪽 전파 */
+btn.addEventListener('click', () => {
+  // a) ag‑Grid 이벤트
+  if (this.params && this.params.api) {
+    this.params.api.dispatchEvent({ type: 'cell-button-click', data: this.params.data });
+  }
+  // b) Vue componentParent 이벤트
+  if (this.params && this.params.context && this.params.context.componentParent) {
+    this.params.context.componentParent.$emit('cell-button-click', this.params.data);
+  }
+});
+
+this.eGui = btn; // ag‑Grid 가 getGui() 로 가져감
+
 }
+
+getGui() { return this.eGui; }
+
+refresh(params) { // rowData 변경 시 라벨 업데이트(옵션) if (params && params.colDef && params.colDef.cellRendererParams) { this.eGui.textContent = params.colDef.cellRendererParams.label || this.eGui.textContent; } return true; // 인스턴스 재사용 }
+
+destroy() { // 필수 정리 작업 if (this.eGui && this.eGui.parentNode) { this.eGui.parentNode.removeChild(this.eGui); } } }
+
