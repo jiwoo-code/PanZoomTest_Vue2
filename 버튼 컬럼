@@ -1,3 +1,8 @@
+// CellButtonRenderer.js – 재사용 가능한 ag‑Grid 셀 버튼 렌더러
+//   • <sp-button small> 태그 사용 (프로젝트 공통 버튼)
+//   • cellRendererParams.label 로 버튼 텍스트 지정 (기본: '버튼')
+//   • 클릭 시 'cell-button-click' 이벤트를 ag-Grid API & Vue componentParent 로 전파
+
 export class CellButtonRenderer {
   /** @param {ICellRendererParams} params */
   init(params) {
