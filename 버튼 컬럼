@@ -1,41 +1,60 @@
-// CellButton.js – Vue 파일을 .js로 구현한 ag-Grid 셀 버튼 렌더러
-// Vue 파일의 동작을 그대로 JavaScript로 구현
+// CellButton.js – spButton.scss의 CSS 클래스를 활용한 ag-Grid 셀 버튼 렌더러
 
 export class CellButton {
   /** @param {ICellRendererParams} params */
   init(params) {
     this.params = params;
 
-    // sp-button 엘리먼트 생성
-    const btn = document.createElement('sp-button');
-    btn.setAttribute('small', '');
-    btn.style.height = '24px';
+    // 일반 button 엘리먼트 생성
+    const btn = document.createElement('button');
+    
+    // spButton.scss에서 정의된 클래스들 적용
+    // 일반적인 sp-button 클래스 구조 예상:
+    btn.className = 'sp-button sp-button--small';
+    
+    // 또는 더 구체적인 클래스들이 있다면:
+    // btn.className = 'sp-button sp-button--primary sp-button--small';
+    
+    // 추가 속성들
+    btn.setAttribute('type', 'button');
+    
+    // 기본 스타일 (SCSS에서 정의되지 않은 ag-grid 특화 스타일들)
+    btn.style.cssText = `
+      height: 24px;
+      width: 100%;
+      box-sizing: border-box;
+    `;
 
-    // 라벨 설정 (cellRendererParams.label 또는 빈 문자열)
+    // 라벨 설정
     const label = params?.colDef?.cellRendererParams?.label || '';
     btn.textContent = label;
 
-    // 추가 스타일이 있다면 적용
+    // cellRendererParams에서 추가 CSS 클래스 지정 가능
+    const extraClasses = params?.colDef?.cellRendererParams?.className;
+    if (extraClasses) {
+      btn.className += ` ${extraClasses}`;
+    }
+
+    // 추가 인라인 스타일
     const extraStyle = params?.colDef?.cellRendererParams?.style;
     if (extraStyle) {
       btn.style.cssText += `;${extraStyle}`;
     }
 
-    // 클릭 이벤트 처리 - Vue의 onClick 메서드와 동일한 로직
-    btn.addEventListener('click', () => {
+    // 클릭 이벤트 처리
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       this.onClick();
     });
 
     this.eGui = btn;
   }
 
-  // Vue의 onClick 메서드를 JavaScript로 구현
   onClick() {
-    // Vue 컴포넌트 찾기
     let vueComponent = this.findVueComponent();
     
     if (vueComponent && typeof vueComponent.$emit === 'function') {
-      // Vue 파일과 동일한 이벤트 emit
       vueComponent.$emit('cellBtnClick', {
         colId: this.params.column.getColId(),
         data: this.params.data
@@ -46,7 +65,6 @@ export class CellButton {
     }
   }
 
-  // Vue 컴포넌트를 찾는 헬퍼 메서드
   findVueComponent() {
     // 방법 1: context.componentParent
     if (this.params.context && this.params.context.componentParent) {
@@ -70,13 +88,6 @@ export class CellButton {
       if (element.__vue__) {
         return element.__vue__;
       }
-      // ag-grid 관련 클래스에서 찾기
-      if (element.classList.contains('ag-root-wrapper') || 
-          element.classList.contains('ag-root')) {
-        if (element.__vue__) {
-          return element.__vue__;
-        }
-      }
     }
 
     return null;
@@ -95,11 +106,16 @@ export class CellButton {
       this.eGui.textContent = newLabel;
     }
 
+    // 클래스 업데이트
+    const newClasses = params?.colDef?.cellRendererParams?.className;
+    if (newClasses) {
+      // 기본 클래스는 유지하고 새 클래스 추가
+      this.eGui.className = `sp-button sp-button--small ${newClasses}`;
+    }
+
     // 스타일 업데이트
     const newStyle = params?.colDef?.cellRendererParams?.style;
     if (newStyle) {
-      // 기본 스타일 유지하면서 새 스타일 적용
-      this.eGui.style.height = '24px';
       this.eGui.style.cssText += `;${newStyle}`;
     }
 
@@ -108,8 +124,6 @@ export class CellButton {
 
   destroy() {
     if (this.eGui) {
-      // 이벤트 리스너 정리 (메모리 누수 방지)
-      this.eGui.removeEventListener('click', this.onClick);
       this.eGui.remove();
       this.eGui = null;
     }
@@ -119,56 +133,62 @@ export class CellButton {
 
 /* ========== 사용 예 ==========
 
-1. Vue 컴포넌트에서 ag-grid 설정:
-data() {
-  return {
-    gridOptions: {
-      context: {
-        componentParent: this  // 중요: Vue 컴포넌트 인스턴스 전달
-      },
-      columnDefs: [
-        {
-          field: 'action',
-          headerName: 'Action',
-          cellRenderer: CellButton,
-          cellRendererParams: {
-            label: '상세보기',
-            style: 'background:#1976d2; color:white; border-color:#1976d2;'
-          },
-          width: 120,
-          resizable: false,
-          sortable: false
-        }
-      ]
-    }
-  }
-}
+1. spButton.scss가 컴파일된 CSS가 이미 로드되어 있다고 가정
 
-2. Vue 템플릿:
-<template>
-  <ag-grid-vue
-    :gridOptions="gridOptions"
-    @cellBtnClick="onCellBtnClick"
-    ...
-  />
-</template>
-
-3. 이벤트 핸들러:
-methods: {
-  onCellBtnClick(eventData) {
-    console.log('셀 버튼 클릭:', eventData);
-    console.log('컬럼 ID:', eventData.colId);
-    console.log('행 데이터:', eventData.data);
-    
-    // 원하는 로직 구현
-    if (eventData.colId === 'action') {
-      this.showDetail(eventData.data);
-    }
+2. 컬럼 정의에서 SCSS 클래스 활용:
+{
+  field: 'action',
+  headerName: 'Action',
+  cellRenderer: CellButton,
+  cellRendererParams: {
+    label: '수정',
+    className: 'sp-button--primary sp-button--rounded', // SCSS에서 정의된 추가 클래스들
+    style: 'margin: 2px;' // 필요시 추가 인라인 스타일
   },
-  
-  showDetail(rowData) {
-    // 상세보기 로직
-  }
+  width: 80
 }
+
+3. 다양한 버튼 스타일 예시:
+// 기본 버튼
+{ 
+  cellRendererParams: { 
+    label: '보기',
+    className: 'sp-button--default' 
+  } 
+}
+
+// 프라이머리 버튼  
+{ 
+  cellRendererParams: { 
+    label: '수정',
+    className: 'sp-button--primary' 
+  } 
+}
+
+// 위험 버튼
+{ 
+  cellRendererParams: { 
+    label: '삭제',
+    className: 'sp-button--danger' 
+  } 
+}
+
+// 아웃라인 버튼
+{ 
+  cellRendererParams: { 
+    label: '취소',
+    className: 'sp-button--outline' 
+  } 
+}
+
+========= spButton.scss 활용을 위한 체크리스트 =========
+
+1. spButton.scss가 빌드되어 CSS로 변환되었는지 확인
+2. 해당 CSS 파일이 페이지에 로드되었는지 확인  
+3. 실제 클래스명 확인 (개발자 도구에서 다른 sp-button 요소 검사)
+4. 클래스명이 .sp-button, .sp-button--small 등인지 확인
+
+// 실제 클래스명을 확인하려면:
+console.log('현재 페이지의 sp-button:', document.querySelector('.sp-button'));
 
 */
