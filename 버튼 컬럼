@@ -1,64 +1,54 @@
-// CellButtonRenderer.js – 재사용 가능한 ag‑Grid 셀 버튼 렌더러 (순수 JS) //   • cellRendererParams.label 로 버튼 텍스트 지정 (기본: '버튼') //   • 클릭 시 'cell-button-click' 이벤트를 ag‑Grid API & Vue componentParent 로 전파 // // 사용 예시 (columnDefs) // { //   field: 'action', //   headerName: 'Action', //   cellRenderer: CellButtonRenderer, //   cellRendererParams: { label: '상세' } // }
+export class CellButtonRenderer {
+  /** @param {ICellRendererParams} params */
+  init(params) {
+    this.params = params;
 
-export class CellButtonRenderer { /**
+    /* 1️⃣ <sp-button> 엘리먼트 생성 */
+    const btn = document.createElement('sp-button');
+    btn.setAttribute('small', '');                 // small 속성
+    btn.style.height = '24px';                     // 고정 높이
 
-@param {ICellRendererParams} params – ag‑Grid 가 넘겨주는 파라미터 */ init(params) { this.params = params;
+    const label = (params.colDef.cellRendererParams && params.colDef.cellRendererParams.label) || '버튼';
+    btn.textContent = label;
 
+    /* 2️⃣ 클릭 이벤트 – Vue & ag‑Grid 모두 전파 */
+    btn.addEventListener('click', () => {
+      // a) ag‑Grid 이벤트
+      if (this.params && this.params.api) {
+        this.params.api.dispatchEvent({ type: 'cell-button-click', data: this.params.data });
+      }
+      // b) Vue componentParent 이벤트
+      if (this.params && this.params.context && this.params.context.componentParent) {
+        this.params.context.componentParent.$emit('cell-button-click', this.params.data);
+      }
+    });
 
-/* 1️⃣ 버튼 DOM 생성 */
-const btn = document.createElement('button');
-btn.type  = 'button';
-btn.textContent = (params.colDef.cellRendererParams && params.colDef.cellRendererParams.label) || '버튼';
-
-/* 기본 스타일 – 필요하면 전역 CSS 로 이동 */
-btn.style.cssText = `
-  padding: 4px 10px;
-  font-size: 12px;
-  line-height: 16px;
-  color: #fff;
-  background:#4b70dd;
-  border:1px solid #4b70dd;
-  border-radius:3px;
-  cursor:pointer;
-`;
-
-btn.addEventListener('mouseenter',()=>{
-  btn.style.background = '#3258c4';
-  btn.style.borderColor = '#3258c4';
-});
-btn.addEventListener('mouseleave',()=>{
-  btn.style.background = '#4b70dd';
-  btn.style.borderColor = '#4b70dd';
-});
-
-/* 2️⃣ 클릭 이벤트 – ag‑Grid & Vue 양쪽 전파 */
-btn.addEventListener('click', () => {
-  // a) ag‑Grid 이벤트
-  if (this.params && this.params.api) {
-    this.params.api.dispatchEvent({ type: 'cell-button-click', data: this.params.data });
+    this.eGui = btn;
   }
-  // b) Vue componentParent 이벤트
-  if (this.params && this.params.context && this.params.context.componentParent) {
-    this.params.context.componentParent.$emit('cell-button-click', this.params.data);
+
+  getGui() {
+    return this.eGui;
   }
-});
 
-this.eGui = btn; // ag‑Grid 가 getGui() 로 가져감
+  refresh(params) {
+    // 라벨 변동 시 업데이트
+    const newLabel = (params.colDef.cellRendererParams && params.colDef.cellRendererParams.label) || this.eGui.textContent;
+    this.eGui.textContent = newLabel;
+    this.params = params;
+    return true;
+  }
 
+  destroy() {
+    this.eGui?.remove();
+  }
 }
 
-getGui() { return this.eGui; }
-
-refresh(params) { // rowData 변경 시 라벨 업데이트(옵션) if (params && params.colDef && params.colDef.cellRendererParams) { this.eGui.textContent = params.colDef.cellRendererParams.label || this.eGui.textContent; } return true; // 인스턴스 재사용 }
-
-destroy() { // 필수 정리 작업 if (this.eGui && this.eGui.parentNode) { this.eGui.parentNode.removeChild(this.eGui); } } }
-
-
-
-
+/*
+// columnDefs 사용 예
 {
   field: 'action',
   headerName: 'Action',
   cellRenderer: CellButtonRenderer,
-  cellRendererParams: { label: '상세' }   // 컬럼별 맞춤 텍스트
+  cellRendererParams: { label: '상세' }
 }
+*/
