@@ -1,0 +1,137 @@
+알겠습니다. 검증·실행 로직은 각 뷰(컨트롤 / 히스토리 등)에서 자체적으로 하고,
+PageMain 은 “확인창만” 제공하는 구조로 재정리한 예시입니다.
+
+
+---
+
+1  PageMain.vue – 확인창만 제공
+
+<template>
+  <div>
+    <!-- … page UI … -->
+
+    <ConfirmDialog
+      :visible="confirm.visible"
+      :message="confirm.message"
+      @yes="resolveConfirm(true)"
+      @no ="resolveConfirm(false)"
+    />
+  </div>
+</template>
+
+<script>
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
+
+export default {
+  components: { ConfirmDialog },
+
+  data() {
+    return { confirm: { visible:false, message:'', resolve:null } };
+  },
+
+  /* ✅ 하위 컴포넌트에게 `$confirm` 한 가지만 공급 */
+  provide() {
+    return {
+      $confirm: this.openConfirm
+    };
+  },
+
+  methods: {
+    openConfirm(message) {
+      return new Promise(resolve => {
+        Object.assign(this.confirm, { visible:true, message, resolve });
+      });
+    },
+    resolveConfirm(result) {
+      if (typeof this.confirm.resolve === 'function') {
+        this.confirm.resolve(result);       // YES ▶ true,  NO ▶ false
+      }
+      this.confirm.visible = false;
+      this.confirm.resolve = null;          // 초기화
+    }
+  }
+};
+</script>
+
+
+---
+
+2  applyService.js – 검증/실행 API 그대로 사용
+
+// src/api/applyService.js
+import api from '@/plugins/axios';
+
+export const validate = (eqpId) =>
+  api.get('/apply/validate', { params:{ eqpId } })
+     .then(r => r.data);           // { ok: true/false, msg }
+
+export const execute  = (eqpId) =>
+  api.post('/apply/execute', { eqpId })
+     .then(r => r.data);           // { status:'SUCCESS', ... }
+
+
+---
+
+3  하위 컴포넌트(Control.vue·HistoryPopup.vue 등)
+
+<script>
+import { validate, execute } from '@/api/applyService';
+
+export default {
+  inject: ['$confirm'],              // ⬅️ PageMain 에서 주입
+  props : { eqpId: String },
+
+  methods: {
+    async onClickApply() {
+      /* 1) 검증 */
+      const v = await validate(this.eqpId);
+      if (!v.ok) {
+        this.$toast.error(v.msg);    // 검증 실패
+        return;
+      }
+
+      /* 2) 확인창 */
+      const ok = await this.$confirm('Apply를 실행하시겠습니까?');
+      if (!ok) return;               // 사용자가 취소
+
+      /* 3) 실제 실행 */
+      try {
+        const res = await execute(this.eqpId);
+        this.$toast.success(res.status || 'Apply 완료');
+      } catch (e) {
+        this.$toast.error('Apply 실패');   // 오류 처리
+        console.error(e);
+      }
+    }
+  }
+};
+</script>
+
+
+---
+
+구조 요약
+
+PageMain (확인창 제공)
+ ├─ MonitorTab.vue
+ ├─ Control.vue    ← 검증 + ($confirm) + 실행
+ └─ HistoryPopup.vue
+
+PageMain → $confirm: 오직 Yes/No 결과만 Promise 로 반환
+
+각 뷰:
+
+1. validate() 호출 → 실패 시 즉시 중단
+
+
+2. await this.$confirm() 으로 팝업 표시
+
+
+3. YES 면 execute() 호출 ⇒ 결과 처리
+
+
+
+
+이렇게 하면 검증·승인·실행 흐름은 각 뷰가 책임지고,
+PageMain 은 UI(확인창)만 담당하므로 역할이 명확하게 분리됩니다.
+
