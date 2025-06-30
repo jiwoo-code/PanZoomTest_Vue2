@@ -1,137 +1,101 @@
-알겠습니다. 검증·실행 로직은 각 뷰(컨트롤 / 히스토리 등)에서 자체적으로 하고,
-PageMain 은 “확인창만” 제공하는 구조로 재정리한 예시입니다.
+“검증 → (확인팝업) → 실행”을 한 함수로 래핑해서
+
+어느 컴포넌트든 한 줄로 호출할 수 있게 만드는 구체적 설계
 
 
 ---
 
-1  PageMain.vue – 확인창만 제공
-
-<template>
-  <div>
-    <!-- … page UI … -->
-
-    <ConfirmDialog
-      :visible="confirm.visible"
-      :message="confirm.message"
-      @yes="resolveConfirm(true)"
-      @no ="resolveConfirm(false)"
-    />
-  </div>
-</template>
-
-<script>
-import ConfirmDialog from '@/components/ConfirmDialog.vue';
-
-export default {
-  components: { ConfirmDialog },
-
-  data() {
-    return { confirm: { visible:false, message:'', resolve:null } };
-  },
-
-  /* ✅ 하위 컴포넌트에게 `$confirm` 한 가지만 공급 */
-  provide() {
-    return {
-      $confirm: this.openConfirm
-    };
-  },
-
-  methods: {
-    openConfirm(message) {
-      return new Promise(resolve => {
-        Object.assign(this.confirm, { visible:true, message, resolve });
-      });
-    },
-    resolveConfirm(result) {
-      if (typeof this.confirm.resolve === 'function') {
-        this.confirm.resolve(result);       // YES ▶ true,  NO ▶ false
-      }
-      this.confirm.visible = false;
-      this.confirm.resolve = null;          // 초기화
-    }
-  }
-};
-</script>
-
-
----
-
-2  applyService.js – 검증/실행 API 그대로 사용
+1  applyService.js — runApplyFlow 헬퍼 함수 추가
 
 // src/api/applyService.js
 import api from '@/plugins/axios';
 
+/* 개별 API ------------------------------ */
 export const validate = (eqpId) =>
-  api.get('/apply/validate', { params:{ eqpId } })
-     .then(r => r.data);           // { ok: true/false, msg }
+  api.get('/apply/validate', { params:{ eqpId } }).then(r => r.data);
 
 export const execute  = (eqpId) =>
-  api.post('/apply/execute', { eqpId })
-     .then(r => r.data);           // { status:'SUCCESS', ... }
+  api.post('/apply/execute',  { eqpId }).then(r => r.data);
+
+/* 💡 NEW ─ 검증+팝업+실행 전체 수행 ------------------------ */
+/**
+ * @param {string}   eqpId
+ * @param {Function} confirmFn   (message:string) => Promise<boolean>
+ * @returns {Promise<{ ok:boolean, msg:string }>}
+ */
+export async function runApplyFlow(eqpId, confirmFn) {
+  /* 1) 검증 */
+  const v = await validate(eqpId);
+  if (!v.ok) return { ok:false, msg:v.msg };
+
+  /* 2) 확인 창 */
+  const approved = await confirmFn('Apply를 실행하시겠습니까?');
+  if (!approved)  return { ok:false, msg:'사용자 취소' };
+
+  /* 3) 실제 실행 */
+  const ex = await execute(eqpId);
+  return { ok:true, msg: ex.status || 'SUCCESS' };
+}
+
+> confirmFn 을 매개변수로 받아 팝업 UI 에 의존하지 않습니다.
+
+추후 테스트 시 confirmFn 자리에 () => Promise.resolve(true) 를 넘기면 자동 승인 mock 가능.
+
+
+
 
 
 ---
 
-3  하위 컴포넌트(Control.vue·HistoryPopup.vue 등)
+2  PageMain.vue — 확인창($confirm)만 Provide (변경 없음)
+
+provide() {
+  return { $confirm: this.openConfirm };   // 그대로
+}
+
+
+---
+
+3  하위 컴포넌트에서 1줄 호출
 
 <script>
-import { validate, execute } from '@/api/applyService';
+import { runApplyFlow } from '@/api/applyService';
 
 export default {
-  inject: ['$confirm'],              // ⬅️ PageMain 에서 주입
+  inject: ['$confirm'],
   props : { eqpId: String },
 
   methods: {
     async onClickApply() {
-      /* 1) 검증 */
-      const v = await validate(this.eqpId);
-      if (!v.ok) {
-        this.$toast.error(v.msg);    // 검증 실패
+      const { ok, msg } = await runApplyFlow(this.eqpId, this.$confirm);
+
+      if (!ok) {
+        this.$toast.error(msg);
         return;
       }
-
-      /* 2) 확인창 */
-      const ok = await this.$confirm('Apply를 실행하시겠습니까?');
-      if (!ok) return;               // 사용자가 취소
-
-      /* 3) 실제 실행 */
-      try {
-        const res = await execute(this.eqpId);
-        this.$toast.success(res.status || 'Apply 완료');
-      } catch (e) {
-        this.$toast.error('Apply 실패');   // 오류 처리
-        console.error(e);
-      }
+      this.$toast.success('Apply 완료!');
     }
   }
 };
 </script>
 
+중복된 검증+팝업+실행 로직을 서비스 계층으로 이동 → 뷰 파일들이 깔끔해집니다.
+
+확인창 구현을 바꾸더라도 컴포넌트 쪽은 수정할 필요가 없습니다(함수 주입).
+
+
 
 ---
 
-구조 요약
+장점 요약
 
-PageMain (확인창 제공)
- ├─ MonitorTab.vue
- ├─ Control.vue    ← 검증 + ($confirm) + 실행
- └─ HistoryPopup.vue
+장점	설명
 
-PageMain → $confirm: 오직 Yes/No 결과만 Promise 로 반환
-
-각 뷰:
-
-1. validate() 호출 → 실패 시 즉시 중단
+한 곳에만 로직 유지	검증·팝업·실행 시나리오 변경 시 applyService.js 한 파일만 수정
+의존 최소	UI(팝업)는 함수 인젝션으로 decouple → 테스트·모킹 쉬움
+재사용 간단	하위 컴포넌트는 await runApplyFlow(eqpId, this.$confirm) 단 한 줄
 
 
-2. await this.$confirm() 으로 팝업 표시
-
-
-3. YES 면 execute() 호출 ⇒ 결과 처리
-
-
-
-
-이렇게 하면 검증·승인·실행 흐름은 각 뷰가 책임지고,
-PageMain 은 UI(확인창)만 담당하므로 역할이 명확하게 분리됩니다.
+프로젝트 전반에서 “Apply” 플로우가 반복된다면,
+이처럼 서비스 계층에 래핑 함수를 두고 UI 함수(confirmFn)만 주입하는 구조가 가장 유지보수에 유리합니다.
 
