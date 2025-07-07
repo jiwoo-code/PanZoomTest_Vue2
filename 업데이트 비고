@@ -1,0 +1,173 @@
+1. Vue ─ HistoryPopup.vue
+
+<script>
+import axios from '@/plugins/axios';
+
+export default {
+  props: { canEditRemark: Boolean },
+
+  data() {
+    return {
+      gridApi     : null,
+      hasChanged  : false,         // 저장 버튼 활성 여부
+      columnDefs: [
+        { field:'id', width:80 },
+        {
+          field: 'remark',
+          headerName: '비고',
+          editable : () => this.canEditRemark,
+          cellEditor: 'agLargeTextCellEditor',
+          cellEditorParams:{ cols:28, rows:3 },
+          cellClassRules: { 'cell-changed': p => !!p.data.changed }
+        }
+      ],
+      gridOptions: {
+        defaultColDef:{ resizable:true, sortable:true },
+        onCellValueChanged: p => this.markChanged(p)
+      }
+    };
+  },
+
+  methods: {
+    onGridReady(p) { this.gridApi = p.api; },
+
+    /* 셀 편집 시 changed 플래그 지정 */
+    markChanged(p) {
+      if (p.colDef.field === 'remark' && this.canEditRemark) {
+        p.data.changed = true;
+        this.hasChanged = true;
+        p.api.refreshCells({ rowNodes:[p.node], columns:['remark'] });
+      }
+    },
+
+    /* changed 행 모으기 */
+    collectChanged() {
+      const list = [];
+      this.gridApi.forEachNode(n => {
+        if (n.data.changed) list.push({ id:n.data.id, remark:n.data.remark });
+      });
+      return list;
+    },
+
+    /* 👉 저장 버튼 */
+    async saveChanged() {
+      const payload = this.collectChanged();
+      if (!payload.length) return;
+
+      try {
+        await axios.post('/api/history/updateRemarks', payload);   // POST + JSON
+        this.clearChanged();
+        this.$toast.success('저장 완료');
+      } catch (e) {
+        this.$toast.error('저장 실패');
+        console.error(e);
+      }
+    },
+
+    /* 저장 성공 후 초기화 */
+    clearChanged() {
+      this.gridApi.forEachNode(n => { n.data.changed = false; });
+      this.hasChanged = false;
+      this.gridApi.refreshCells({ force:true });
+    }
+  }
+};
+</script>
+
+<style scoped>
+.cell-changed { background:#fff5cc !important; }
+</style>
+
+
+---
+
+2. Java 백엔드
+
+2-1. DTO
+
+@Data @AllArgsConstructor @NoArgsConstructor
+public class RemarkDTO {
+    private Long   id;
+    private String remark;
+}
+
+2-2. Controller
+
+@RestController
+@RequestMapping("/api/history")
+@RequiredArgsConstructor
+public class HistoryController {
+
+    private final HistoryService historyService;
+
+    /** POST /api/history/updateRemarks
+     *  Body : [ { "id":1, "remark":"..." }, ... ]
+     */
+    @PostMapping("/updateRemarks")
+    public int updateRemarks(@RequestBody List<RemarkDTO> list) {
+        return historyService.updateRemarks(list);   // 수정된 row 수 반환
+    }
+}
+
+2-3. Service
+
+@Service
+@RequiredArgsConstructor
+public class HistoryService {
+
+    private final HistoryMapper historyMapper;
+
+    @Transactional
+    public int updateRemarks(List<RemarkDTO> list) {
+        if (list.isEmpty()) return 0;
+        return historyMapper.batchUpdate(list);
+    }
+}
+
+2-4. Mapper 인터페이스
+
+@Mapper
+public interface HistoryMapper {
+    int batchUpdate(@Param("list") List<RemarkDTO> list);
+}
+
+2-5. MyBatis XML
+
+<!-- resources/mapper/HistoryMapper.xml -->
+<mapper namespace="com.example.HistoryMapper">
+
+  <update id="batchUpdate">
+    <foreach collection="list" item="r" separator=";">
+      UPDATE history
+      SET    remark = #{r.remark}
+      WHERE  id     = #{r.id}
+    </foreach>
+  </update>
+
+</mapper>
+
+
+---
+
+전체 흐름
+
+1. Vue
+편집 → row.changed = true → 저장 → axios.post('/api/history/updateRemarks', changedRows)
+
+
+2. Spring Controller
+@RequestBody List<RemarkDTO> 로 수신 → Service 호출
+
+
+3. Service (트랜잭션) → Mapper
+
+
+4. MyBatis <foreach> 로 UPDATE … ; UPDATE … (배치)
+
+
+5. 성공 시 Vue 에서 clearChanged() → 셀 하이라이트 및 플래그 해제
+
+
+
+이렇게 하면 행 수정 여부 표시·일괄 저장이 changed 플래그 기준으로 간결하게 동작합니다.
+
