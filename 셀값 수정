@@ -155,9 +155,11 @@ export default {
 ㅡㅡㅡㅡㅡㅡ
 
 
+
+
 <template>
   <div class="grid-container">
-    <div class="ag-theme-alpine" style="height: 400px; width: 100%;">
+    <div class="ag-theme-balham" style="height: 400px; width: 100%;">
       <ag-grid-vue
         ref="agGrid"
         :columnDefs="columnDefs"
@@ -173,16 +175,9 @@ export default {
     <div class="button-container">
       <button 
         :disabled="!hasChanges" 
-        :class="{ 'active': hasChanges }"
         @click="saveChanges"
       >
         변경사항 저장
-      </button>
-      <button 
-        :disabled="!hasChanges"
-        @click="resetChanges"
-      >
-        변경사항 취소
       </button>
     </div>
   </div>
@@ -202,6 +197,7 @@ export default {
       columnApi: null,
       hasChanges: false,
       originalData: [], // 원본 데이터 저장
+      changedRows: new Set(), // 변경된 행 추적
       rowData: [
         { id: 1, name: '홍길동', department: '개발팀', remark: '우수 직원' },
         { id: 2, name: '김철수', department: '마케팅팀', remark: '신입 직원' },
@@ -234,9 +230,11 @@ export default {
           width: 200,
           editable: true,
           cellEditor: 'agTextCellEditor',
-          cellStyle: { 
-            backgroundColor: '#f0f8ff',
-            cursor: 'pointer'
+          cellStyle: (params) => {
+            if (this.changedRows.has(params.data.id)) {
+              return { backgroundColor: '#ffeb3b', fontWeight: 'bold' }
+            }
+            return null
           },
           cellEditorParams: {
             maxLength: 100
@@ -263,58 +261,75 @@ export default {
     onCellValueChanged(event) {
       // remark 컬럼의 변경사항만 체크
       if (event.colDef.field === 'remark') {
-        this.checkForChanges()
+        this.checkForChanges(event)
       }
     },
     
-    checkForChanges() {
-      const currentData = []
-      this.gridApi.forEachNode(node => {
-        currentData.push(node.data)
-      })
+    checkForChanges(event) {
+      const rowId = event.data.id
+      const currentValue = event.newValue
+      const originalValue = this.originalData.find(item => item.id === rowId)?.remark
       
-      // 원본 데이터와 현재 데이터의 remark 필드 비교
-      let hasRemarkChanges = false
-      
-      for (let i = 0; i < currentData.length; i++) {
-        const current = currentData[i]
-        const original = this.originalData.find(item => item.id === current.id)
-        
-        if (original && current.remark !== original.remark) {
-          hasRemarkChanges = true
-          break
-        }
+      if (currentValue !== originalValue) {
+        // 변경된 행 추가
+        this.changedRows.add(rowId)
+      } else {
+        // 원본과 같아지면 변경된 행에서 제거
+        this.changedRows.delete(rowId)
       }
       
-      this.hasChanges = hasRemarkChanges
+      // 변경사항 있는지 확인
+      this.hasChanges = this.changedRows.size > 0
+      
+      // 셀 스타일 업데이트를 위해 그리드 리프레시
+      this.gridApi.refreshCells({
+        rowNodes: [event.node],
+        columns: ['remark'],
+        force: true
+      })
     },
     
     saveChanges() {
       if (!this.hasChanges) return
       
-      // 현재 그리드 데이터를 가져와서 원본 데이터 업데이트
+      // 현재 그리드 데이터를 가져와서 저장
       const currentData = []
       this.gridApi.forEachNode(node => {
         currentData.push({ ...node.data })
       })
       
-      // 원본 데이터 업데이트
-      this.originalData = JSON.parse(JSON.stringify(currentData))
-      this.hasChanges = false
+      // 변경된 행들만 추출
+      const changedData = currentData.filter(item => this.changedRows.has(item.id))
+      
+      console.log('변경된 데이터:', changedData)
       
       // 실제 서버 저장 로직은 여기에 구현
-      console.log('변경사항 저장됨:', currentData)
+      // 저장 후 로드 함수 호출 예정
+      // this.loadData() // 로드 함수에서 originalData 백업 처리
+      
+      // 임시로 변경사항 초기화 (실제로는 로드 함수에서 처리)
+      this.resetChangesState()
+      
       alert('변경사항이 저장되었습니다.')
     },
     
-    resetChanges() {
-      if (!this.hasChanges) return
-      
-      // 원본 데이터로 복원
-      this.rowData = JSON.parse(JSON.stringify(this.originalData))
+    resetChangesState() {
+      this.changedRows.clear()
       this.hasChanges = false
+      this.gridApi.refreshCells({
+        columns: ['remark'],
+        force: true
+      })
+    },
+    
+    // 로드 함수에서 호출할 메서드
+    loadData() {
+      // 데이터 로드 로직
+      // ...
       
-      console.log('변경사항 취소됨')
+      // 원본 데이터 백업
+      this.originalData = JSON.parse(JSON.stringify(this.rowData))
+      this.resetChangesState()
     }
   }
 }
@@ -327,58 +342,5 @@ export default {
 
 .button-container {
   margin-top: 20px;
-  display: flex;
-  gap: 10px;
-}
-
-button {
-  padding: 10px 20px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: #f8f9fa;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-button:disabled {
-  background-color: #e9ecef;
-  color: #6c757d;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-button:not(:disabled):hover {
-  background-color: #e9ecef;
-}
-
-button.active {
-  background-color: #007bff;
-  color: white;
-  border-color: #007bff;
-}
-
-button.active:hover {
-  background-color: #0056b3;
-}
-
-/* AG Grid 스타일 커스터마이징 */
-:deep(.ag-theme-alpine) {
-  --ag-border-color: #ddd;
-  --ag-header-background-color: #f8f9fa;
-}
-
-/* 편집 가능한 셀 스타일 */
-:deep(.ag-cell[col-id="remark"]) {
-  position: relative;
-}
-
-:deep(.ag-cell[col-id="remark"]:hover) {
-  background-color: #e3f2fd !important;
-}
-
-:deep(.ag-cell-edit-input) {
-  border: 2px solid #007bff;
-  border-radius: 4px;
-  padding: 4px 8px;
 }
 </style>
