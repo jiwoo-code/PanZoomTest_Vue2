@@ -152,3 +152,233 @@ export default {
 
 
 
+ㅡㅡㅡㅡㅡㅡ
+
+
+<template>
+  <div class="grid-container">
+    <div class="ag-theme-alpine" style="height: 400px; width: 100%;">
+      <ag-grid-vue
+        ref="agGrid"
+        :columnDefs="columnDefs"
+        :rowData="rowData"
+        :defaultColDef="defaultColDef"
+        :suppressRowClickSelection="true"
+        @grid-ready="onGridReady"
+        @cell-value-changed="onCellValueChanged"
+      />
+    </div>
+    
+    <!-- 하단 버튼 -->
+    <div class="button-container">
+      <button 
+        :disabled="!hasChanges" 
+        :class="{ 'active': hasChanges }"
+        @click="saveChanges"
+      >
+        변경사항 저장
+      </button>
+      <button 
+        :disabled="!hasChanges"
+        @click="resetChanges"
+      >
+        변경사항 취소
+      </button>
+    </div>
+  </div>
+</template>
+
+<script>
+import { AgGridVue } from 'ag-grid-vue'
+
+export default {
+  name: 'EditableGrid',
+  components: {
+    AgGridVue
+  },
+  data() {
+    return {
+      gridApi: null,
+      columnApi: null,
+      hasChanges: false,
+      originalData: [], // 원본 데이터 저장
+      rowData: [
+        { id: 1, name: '홍길동', department: '개발팀', remark: '우수 직원' },
+        { id: 2, name: '김철수', department: '마케팅팀', remark: '신입 직원' },
+        { id: 3, name: '이영희', department: '디자인팀', remark: '창의적' },
+        { id: 4, name: '박민수', department: '기획팀', remark: '적극적' },
+        { id: 5, name: '정수진', department: '인사팀', remark: '꼼꼼함' }
+      ],
+      columnDefs: [
+        { 
+          headerName: 'ID', 
+          field: 'id', 
+          width: 80,
+          editable: false
+        },
+        { 
+          headerName: '이름', 
+          field: 'name', 
+          width: 120,
+          editable: false
+        },
+        { 
+          headerName: '부서', 
+          field: 'department', 
+          width: 150,
+          editable: false
+        },
+        { 
+          headerName: '비고', 
+          field: 'remark', 
+          width: 200,
+          editable: true,
+          cellEditor: 'agTextCellEditor',
+          cellStyle: { 
+            backgroundColor: '#f0f8ff',
+            cursor: 'pointer'
+          },
+          cellEditorParams: {
+            maxLength: 100
+          }
+        }
+      ],
+      defaultColDef: {
+        sortable: true,
+        filter: true,
+        resizable: true
+      }
+    }
+  },
+  mounted() {
+    // 원본 데이터 깊은 복사로 저장
+    this.originalData = JSON.parse(JSON.stringify(this.rowData))
+  },
+  methods: {
+    onGridReady(params) {
+      this.gridApi = params.api
+      this.columnApi = params.columnApi
+    },
+    
+    onCellValueChanged(event) {
+      // remark 컬럼의 변경사항만 체크
+      if (event.colDef.field === 'remark') {
+        this.checkForChanges()
+      }
+    },
+    
+    checkForChanges() {
+      const currentData = []
+      this.gridApi.forEachNode(node => {
+        currentData.push(node.data)
+      })
+      
+      // 원본 데이터와 현재 데이터의 remark 필드 비교
+      let hasRemarkChanges = false
+      
+      for (let i = 0; i < currentData.length; i++) {
+        const current = currentData[i]
+        const original = this.originalData.find(item => item.id === current.id)
+        
+        if (original && current.remark !== original.remark) {
+          hasRemarkChanges = true
+          break
+        }
+      }
+      
+      this.hasChanges = hasRemarkChanges
+    },
+    
+    saveChanges() {
+      if (!this.hasChanges) return
+      
+      // 현재 그리드 데이터를 가져와서 원본 데이터 업데이트
+      const currentData = []
+      this.gridApi.forEachNode(node => {
+        currentData.push({ ...node.data })
+      })
+      
+      // 원본 데이터 업데이트
+      this.originalData = JSON.parse(JSON.stringify(currentData))
+      this.hasChanges = false
+      
+      // 실제 서버 저장 로직은 여기에 구현
+      console.log('변경사항 저장됨:', currentData)
+      alert('변경사항이 저장되었습니다.')
+    },
+    
+    resetChanges() {
+      if (!this.hasChanges) return
+      
+      // 원본 데이터로 복원
+      this.rowData = JSON.parse(JSON.stringify(this.originalData))
+      this.hasChanges = false
+      
+      console.log('변경사항 취소됨')
+    }
+  }
+}
+</script>
+
+<style scoped>
+.grid-container {
+  padding: 20px;
+}
+
+.button-container {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+button {
+  padding: 10px 20px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+button:disabled {
+  background-color: #e9ecef;
+  color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+button:not(:disabled):hover {
+  background-color: #e9ecef;
+}
+
+button.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+button.active:hover {
+  background-color: #0056b3;
+}
+
+/* AG Grid 스타일 커스터마이징 */
+:deep(.ag-theme-alpine) {
+  --ag-border-color: #ddd;
+  --ag-header-background-color: #f8f9fa;
+}
+
+/* 편집 가능한 셀 스타일 */
+:deep(.ag-cell[col-id="remark"]) {
+  position: relative;
+}
+
+:deep(.ag-cell[col-id="remark"]:hover) {
+  background-color: #e3f2fd !important;
+}
+
+:deep(.ag-cell-edit-input) {
+  border: 2px solid #007bff;
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+</style>
