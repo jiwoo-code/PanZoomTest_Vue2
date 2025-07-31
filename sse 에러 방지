@@ -1,0 +1,33 @@
+@GetMapping("/sse")
+public SseEmitter streamEvent() {
+    SseEmitter emitter = new SseEmitter(30 * 60 * 1000L);
+    emitters.add(emitter);
+
+    ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    ScheduledFuture<?> pingTask = scheduler.scheduleAtFixedRate(() -> {
+        try {
+            emitter.send(SseEmitter.event().name("ping").data("keep-alive"));
+        } catch (IOException e) {
+            emitter.completeWithError(e);
+        }
+    }, 90, 90, TimeUnit.SECONDS);
+
+    Runnable cleanup = () -> {
+        emitters.remove(emitter);
+        pingTask.cancel(true);
+        scheduler.shutdown();
+    };
+
+    emitter.onCompletion(cleanup);
+    emitter.onTimeout(cleanup);
+    emitter.onError(e -> cleanup.run());
+
+    try {
+        emitter.send(SseEmitter.event().name("init").data("connected"));
+    } catch (IOException e) {
+        emitter.completeWithError(e);
+    }
+
+    return emitter;
+}
