@@ -1,0 +1,93 @@
+알겠습니다, 지우님!
+요청하신 형식에 맞춰, GET 방식용과 POST 방식용 테스트 함수의 기본 골격을 Spring Boot + JUnit 5 + MockMvc 기준으로 아래에 제공드릴게요.
+앞으로 유닛 테스트할 때 이 구조를 그대로 복붙해서 쓰시면 됩니다.
+
+
+---
+
+✅ 전제 조건 (이미 설정돼 있어야 할 것들)
+
+@WebMvcTest 또는 @SpringBootTest 기반 테스트 클래스
+
+MockMvc 빈을 주입받고 있어야 함
+
+com.fasterxml.jackson.databind.ObjectMapper 사용 가능 (POST용)
+
+
+
+---
+
+✅ GET 방식 테스트 예시
+
+@Test
+@DisplayName("GET: /api/sample 조회 테스트")
+void testGetSampleApi() throws Exception {
+    // given
+    String url = "/api/sample";
+    String param1 = "test-value";
+    String param2 = "123";
+
+    // when & then
+    mockMvc.perform(get(url)
+            .param("param1", param1)
+            .param("param2", param2))
+        .andExpect(status().isOk())
+        .andDo(print());
+}
+
+
+---
+
+✅ POST 방식 테스트 예시
+
+@Test
+@DisplayName("POST: /api/sample 등록 테스트")
+void testPostSampleApi() throws Exception {
+    // given
+    String url = "/api/sample";
+    SampleRequestDto requestDto = new SampleRequestDto();
+    requestDto.setName("테스트");
+    requestDto.setAge(30);
+
+    // when & then
+    mockMvc.perform(post(url)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(requestDto)))
+        .andExpect(status().isOk())
+        .andDo(print());
+}
+
+> 위에서 SampleRequestDto는 테스트용으로 만든 예시 DTO 클래스입니다. 실제 사용하는 요청 DTO로 바꿔주세요.
+
+
+
+
+---
+
+📦 관련 import
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.web.servlet.MockMvc;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+
+---
+
+☑️ 참고
+
+위의 테스트는 정상 호출 여부 확인 + status 200까지만 검증합니다.
+
+coverage만 확인하라고 했으니, 내부 로직보다는 경로를 모두 한번씩 호출하는 게 핵심입니다.
+
+만약 커버리지를 더 높여야 한다면 응답값 검증, 에러 상황 테스트 등을 추가해도 됩니다.
+
+
+
+---
