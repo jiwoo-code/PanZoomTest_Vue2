@@ -1,0 +1,28 @@
+public static void handle(Exception e, Map<String, Object> resultMap) {
+    // 공통 메시지
+    resultMap.put("message", "내부 시스템 문제로 인해 실패하였습니다. 담당자에게 문의 바랍니다.");
+    
+    if (e instanceof RestClientResponseException) {
+        RestClientResponseException ex = (RestClientResponseException) e;
+        
+        // HTTP 상태 코드에 따른 세부 정보
+        int statusCode = ex.getRawStatusCode();
+        if (statusCode >= 500) {
+            resultMap.put("description", "외부 서비스 서버 오류");
+        } else if (statusCode == 404) {
+            resultMap.put("description", "요청 데이터 없음");
+        } else if (statusCode == 400) {
+            resultMap.put("description", "요청 데이터 형식 오류");
+        } else if (statusCode == 401 || statusCode == 403) {
+            resultMap.put("description", "외부 서비스 접근 권한 오류");
+        } else {
+            resultMap.put("description", "외부 서비스 연동 오류");
+        }
+
+    } else if (e instanceof ResourceAccessException) {
+        resultMap.put("description", "네트워크 연결 오류");
+
+    } else {
+        resultMap.put("description", "시스템 처리 오류");
+    }
+}
