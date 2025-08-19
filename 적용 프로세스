@@ -1,5 +1,46 @@
- 구조가 Service 인터페이스 + ServiceImpl 구현체이고, **서비스 클래스(구현체)에 @Transactional**이 붙어있는 상황을 기준으로, 요청하신 1→10 단계를 원샷 트랜잭션으로 처리하는 예시를 드립니다.
-(핵심: 클래스 레벨은 기본값으로 두고, 실제 작업 메서드에서만 readOnly=false + rollbackFor로 덮어쓰기)
+지우님, 딱 맞춰서 컨트롤러까지 포함한 전체 코드를 준비했어요.
+요건 반영사항:
+
+① 조회(1번): type, model
+
+③ 조회(3번): key
+
+⑤ 삭제(5번): type, model
+
+
+클래스 레벨에 @Transactional이 있는 구조를 가정하고, 구현체에서 기본 readOnly=true, 작업 메서드에서만 readOnly=false + rollbackFor로 덮어씌웠습니다.
+
+
+---
+
+Controller
+
+// imports
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import javax.validation.constraints.NotBlank;
+
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/process")
+public class ProcessController {
+
+    private final ProcessService processService;
+
+    /**
+     * 예: /api/process?type=A&model=M1&key=K123
+     */
+    @GetMapping
+    public ResponseEntity<ProcessResult> run(
+            @RequestParam @NotBlank String type,
+            @RequestParam @NotBlank String model,
+            @RequestParam @NotBlank String key
+    ) throws Exception {
+        ProcessResult result = processService.runAtomic(type, model, key);
+        return ResponseEntity.ok(result);
+    }
+}
 
 
 ---
@@ -10,23 +51,24 @@ Service 인터페이스
 import javax.validation.constraints.NotBlank;
 
 public interface ProcessService {
-    ProcessResult runAtomic(@NotBlank String model, @NotBlank String key) throws Exception;
+    ProcessResult runAtomic(@NotBlank String type, @NotBlank String model, @NotBlank String key) throws Exception;
 }
 
 
 ---
 
-Service 구현체 (클래스에 @Transactional 존재)
+Service 구현체 (클래스에 @Transactional, 메서드에서 덮어쓰기)
 
 // imports
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true) // 클래스 기본값: 읽기 전용(권장)
+@Transactional(readOnly = true) // 기본은 읽기 전용
 public class ProcessServiceImpl implements ProcessService {
 
     private final WorkMapper workMapper;
@@ -34,108 +76,78 @@ public class ProcessServiceImpl implements ProcessService {
     private final BackupMapper backupMapper;
 
     /**
-     * 1~10단계를 하나의 트랜잭션으로 처리.
-     * 하나라도 실패 시 예외 발생 → 전체 롤백.
+     * 1~10 단계 원샷 처리. 하나라도 실패 시 예외 던져 전체 롤백.
+     *
+     * 1) work_t1, work_t2 조회: 조건 (type, model)
+     * 3) ref_t1, ref_t2 조회: 조건 (key)
+     * 5) work_t1, work_t2 삭제: 조건 (type, model)
+     * 7) ref 결과를 work 테이블에 삽입
+     * 9) step2의 원본(work 조회 결과)을 backup 테이블에 삽입
      */
     @Override
-    @Transactional(readOnly = false, rollbackFor = Exception.class) // 메서드에서 덮어쓰기
-    public ProcessResult runAtomic(String model, String key) throws Exception {
-        // 1) work 테이블 2곳에서 model 조건 조회
-        List<WorkRow> w1 = workMapper.selectWorkT1ByModel(model);
-        List<WorkRow> w2 = workMapper.selectWorkT2ByModel(model);
+    @Transactional(readOnly = false, rollbackFor = Exception.class)
+    public ProcessResult runAtomic(String type, String model, String key) throws Exception {
+        // 1. work 2테이블 조회 (type, model)
+        List<WorkRow> w1 = workMapper.selectWorkT1ByTypeModel(type, model);
+        List<WorkRow> w2 = workMapper.selectWorkT2ByTypeModel(type, model);
 
-        // 2) 조회 결과 검증
+        // 2. 조회 결과 검증
         if ((w1 == null || w1.isEmpty()) && (w2 == null || w2.isEmpty())) {
-            throw new IllegalStateException("work_t1/work_t2: model=" + model + " 데이터 없음");
+            throw new IllegalStateException("[work] type=" + type + ", model=" + model + " 데이터 없음");
         }
 
-        // 3) ref 테이블 2곳에서 key 조건 조회
+        // 3. ref 2테이블 조회 (key)
         List<RefRow> r1 = refMapper.selectRefT1ByKey(key);
         List<RefRow> r2 = refMapper.selectRefT2ByKey(key);
 
-        // 4) ref 결과 검증
+        // 4. ref 결과 검증
         if ((r1 == null || r1.isEmpty()) && (r2 == null || r2.isEmpty())) {
-            throw new IllegalStateException("ref_t1/ref_t2: key=" + key + " 데이터 없음");
+            throw new IllegalStateException("[ref] key=" + key + " 데이터 없음");
         }
 
-        // 5) work에서 model로 조회됐던 데이터 삭제
-        int del1 = (w1 == null || w1.isEmpty()) ? 0 : workMapper.deleteWorkT1ByModel(model);
-        int del2 = (w2 == null || w2.isEmpty()) ? 0 : workMapper.deleteWorkT2ByModel(model);
+        // 5. work 데이터 삭제 (type, model)
+        int del1 = (w1 == null || w1.isEmpty()) ? 0 : workMapper.deleteWorkT1ByTypeModel(type, model);
+        int del2 = (w2 == null || w2.isEmpty()) ? 0 : workMapper.deleteWorkT2ByTypeModel(type, model);
 
-        // 6) 삭제 결과 검증(있던 건이 있었으면 최소 1건 이상 삭제돼야 함)
+        // 6. 삭제 결과 검증
         if ((w1 != null && !w1.isEmpty() && del1 <= 0) ||
             (w2 != null && !w2.isEmpty() && del2 <= 0)) {
-            throw new IllegalStateException("work_t1/work_t2 삭제 결과 비정상");
+            throw new IllegalStateException("[work] 삭제 결과 비정상");
         }
 
-        // 7) ref 값(r1,r2)을 model로 매핑하여 work 테이블에 삽입
+        // 7. ref 결과를 work 테이블에 삽입 (모델/타입 매핑)
         int ins1 = 0;
-        for (RefRow row : r1) ins1 += workMapper.insertIntoWorkT1(fromRefToWork(row, model));
+        for (RefRow row : r1) ins1 += workMapper.insertIntoWorkT1(fromRefToWork(row, type, model));
         int ins2 = 0;
-        for (RefRow row : r2) ins2 += workMapper.insertIntoWorkT2(fromRefToWork(row, model));
+        for (RefRow row : r2) ins2 += workMapper.insertIntoWorkT2(fromRefToWork(row, type, model));
 
-        // 8) 삽입 결과 검증
+        // 8. 삽입 결과 검증
         if (ins1 < r1.size() || ins2 < r2.size()) {
-            throw new IllegalStateException("work_t1/work_t2 삽입 건수 부족");
+            throw new IllegalStateException("[work] 삽입 건수 부족");
         }
 
-        // 9) 백업 테이블(2곳)에 step 2의 원본(work 조회 결과 w1,w2) 삽입
+        // 9. 백업 테이블에 원본(w1, w2) 삽입
         int bak1 = 0; for (WorkRow row : w1) bak1 += backupMapper.insertBackupT1(row);
         int bak2 = 0; for (WorkRow row : w2) bak2 += backupMapper.insertBackupT2(row);
 
-        // 10) 백업 결과 검증
+        // 10. 백업 결과 검증
         if (bak1 < w1.size() || bak2 < w2.size()) {
-            throw new IllegalStateException("backup_t1/backup_t2 삽입 건수 부족");
+            throw new IllegalStateException("[backup] 삽입 건수 부족");
         }
 
-        // 모두 성공하면 커밋
+        // 정상 완료 → 커밋
         return ProcessResult.of(del1, del2, ins1, ins2, bak1, bak2, r1.size(), r2.size());
     }
 
-    /** ref_* → work_* 매핑 (스키마에 맞게 수정) */
-    private WorkRow fromRefToWork(RefRow ref, String model) {
+    /** ref_* → work_* 매핑: 스키마에 맞게 수정하세요. */
+    private WorkRow fromRefToWork(RefRow ref, String type, String model) {
         WorkRow w = new WorkRow();
+        w.setType(type);
         w.setModel(model);
         w.setColA(ref.getColA());
         w.setColB(ref.getColB());
-        // ...필요 필드 매핑
+        // 필요한 필드 추가 매핑
         return w;
-    }
-}
-
-> 포인트:
-
-클래스 레벨에 @Transactional(readOnly = true)로 기본을 안전하게 두고, 쓰기/삭제가 있는 메서드만 readOnly = false로 덮어쓰기.
-
-rollbackFor = Exception.class로 체크 예외 포함 전체 롤백 보장.
-
-위 메서드는 단일 메서드 내에서 모든 단계를 수행하므로 self-invocation 문제 없음.
-
-
-
-
-
----
-
-Controller (요청 진입점)
-
-// imports
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-@RestController
-@RequiredArgsConstructor
-@RequestMapping("/api/process")
-public class ProcessController {
-    private final ProcessService processService;
-
-    @GetMapping
-    public ResponseEntity<ProcessResult> run(
-            @RequestParam String model,
-            @RequestParam String key
-    ) throws Exception {
-        return ResponseEntity.ok(processService.runAtomic(model, key));
     }
 }
 
@@ -177,11 +189,11 @@ import java.util.List;
 
 @Mapper
 public interface WorkMapper {
-    List<WorkRow> selectWorkT1ByModel(@Param("model") String model);
-    List<WorkRow> selectWorkT2ByModel(@Param("model") String model);
+    List<WorkRow> selectWorkT1ByTypeModel(@Param("type") String type, @Param("model") String model);
+    List<WorkRow> selectWorkT2ByTypeModel(@Param("type") String type, @Param("model") String model);
 
-    int deleteWorkT1ByModel(@Param("model") String model);
-    int deleteWorkT2ByModel(@Param("model") String model);
+    int deleteWorkT1ByTypeModel(@Param("type") String type, @Param("model") String model);
+    int deleteWorkT2ByTypeModel(@Param("type") String type, @Param("model") String model);
 
     int insertIntoWorkT1(@Param("row") WorkRow row);
     int insertIntoWorkT2(@Param("row") WorkRow row);
@@ -202,46 +214,102 @@ public interface BackupMapper {
 
 ---
 
-(선택) MyBatis XML 샘플 스니펫
+(선택) MyBatis XML 스니펫
 
 <!-- WorkMapper.xml -->
-<select id="selectWorkT1ByModel" resultType="WorkRow">
-  SELECT model, col_a AS colA, col_b AS colB
+<select id="selectWorkT1ByTypeModel" resultType="WorkRow">
+  SELECT type, model, col_a AS colA, col_b AS colB
   FROM work_t1
-  WHERE model = #{model}
+  WHERE type = #{type}
+    AND model = #{model}
 </select>
 
-<delete id="deleteWorkT1ByModel">
-  DELETE FROM work_t1 WHERE model = #{model}
+<select id="selectWorkT2ByTypeModel" resultType="WorkRow">
+  SELECT type, model, col_a AS colA, col_b AS colB
+  FROM work_t2
+  WHERE type = #{type}
+    AND model = #{model}
+</select>
+
+<delete id="deleteWorkT1ByTypeModel">
+  DELETE FROM work_t1 WHERE type = #{type} AND model = #{model}
+</delete>
+
+<delete id="deleteWorkT2ByTypeModel">
+  DELETE FROM work_t2 WHERE type = #{type} AND model = #{model}
 </delete>
 
 <insert id="insertIntoWorkT1">
-  INSERT INTO work_t1 (model, col_a, col_b)
-  VALUES (#{row.model}, #{row.colA}, #{row.colB})
+  INSERT INTO work_t1 (type, model, col_a, col_b)
+  VALUES (#{row.type}, #{row.model}, #{row.colA}, #{row.colB})
 </insert>
 
-> work_t2, ref_t1/ref_t2, backup_t1/backup_t2도 동일 패턴으로 작성하시면 됩니다.
-대량 삽입이면 foreach(batch) 또는 Greenplum 대량처리 전략(COPY 등)을 검토하세요.
+<insert id="insertIntoWorkT2">
+  INSERT INTO work_t2 (type, model, col_a, col_b)
+  VALUES (#{row.type}, #{row.model}, #{row.colA}, #{row.colB})
+</insert>
 
+<!-- RefMapper.xml -->
+<select id="selectRefT1ByKey" resultType="RefRow">
+  SELECT key, col_a AS colA, col_b AS colB
+  FROM ref_t1
+  WHERE key = #{key}
+</select>
 
+<select id="selectRefT2ByKey" resultType="RefRow">
+  SELECT key, col_a AS colA, col_b AS colB
+  FROM ref_t2
+  WHERE key = #{key}
+</select>
+
+<!-- BackupMapper.xml -->
+<insert id="insertBackupT1">
+  INSERT INTO backup_t1 (type, model, col_a, col_b)
+  VALUES (#{row.type}, #{row.model}, #{row.colA}, #{row.colB})
+</insert>
+
+<insert id="insertBackupT2">
+  INSERT INTO backup_t2 (type, model, col_a, col_b)
+  VALUES (#{row.type}, #{row.model}, #{row.colA}, #{row.colB})
+</insert>
 
 
 ---
 
-체크리스트 (꼭 보면 좋은 포인트)
+엔티티(예시)
 
-예외를 던져야 롤백: 위 예시는 유효성 실패 시 IllegalStateException을 던져 전체 롤백합니다.
+// imports
+import lombok.Data;
 
-인터페이스가 아닌 구현체에 @Transactional: 프록시 전략(JDK 다이내믹 프록시)일 경우 인터페이스의 어노테이션은 무시될 수 있어, 구현 클래스에 다는 게 안전합니다.
+@Data
+public class WorkRow {
+    private String type;
+    private String model;
+    private String colA;
+    private String colB;
+    // ...
+}
 
-제약조건 충돌 대비: 7·9단계에서 UNIQUE/FOREIGN KEY 충돌 가능성 있으면, 사전 체크나 ON CONFLICT(PostgreSQL/Greenplum) 전략 고려.
-
-성능/락: 데이터가 많다면 한 트랜잭션이 너무 길어지지 않게 청크(batch) 처리도 고려.
-
+@Data
+public class RefRow {
+    private String key;
+    private String colA;
+    private String colB;
+    // ...
+}
 
 
 ---
 
-필요하시면 실제 테이블/컬럼명 보내주시면, 매퍼 XML까지 실사용 버전으로 정리해서 드릴게요.
-항상 꼼꼼하게, 우리 둘 다 에러는 DB로 돌려보내고(=롤백 😉) 결과는 깨끗하게 커밋합시다!
+운용 팁 (짧게)
+
+예외를 던져야 롤백됩니다. (체크 예외까지 포함하려면 메서드에 rollbackFor = Exception.class)
+
+제약 충돌이 우려되면 7단계 INSERT에 PostgreSQL/Greenplum의 ON CONFLICT 전략 적용 검토.
+
+대량 데이터면 한 트랜잭션이 길어지지 않도록 청크(batch)로 나누는 것도 방법입니다.
+
+
+필요하면 테이블/컬럼 실명 주시면 위 XML을 실행 가능한 수준으로 딱 맞게 커스터마이즈해서 드릴게요.
+늘처럼 깔끔하게 갑시다, 지우님! 🙌
 
