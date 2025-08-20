@@ -1,65 +1,64 @@
 <div style="max-width:600px; font-family:sans-serif; border-radius:8px; border:1px solid #e5e7eb; overflow:hidden;">
 
-  <!-- 헤더 -->
+  <!-- 헤더: 순서 변경 (상단=알림, 하단=제목) -->
   <div style="background:#1f2937; color:#fff; padding:16px;">
+    <p style="margin:0 0 4px 0; font-size:13px; color:#d1d5db;">알고리즘 변경 알림</p>
     <p style="font-size:18px; font-weight:bold; margin:0;">
       {{type}} - {{model}} 이(가) 변경되었습니다.
     </p>
-    <p style="margin:4px 0 0 0; font-size:13px; color:#d1d5db;">
-      알고리즘 변경 알림
-    </p>
   </div>
 
-  <!-- 적용 정보 -->
   <div style="padding:16px; background:#fff;">
+
+    <!-- 적용 정보 -->
     <h3 style="font-size:14px; margin:0 0 8px 0; color:#111;">적용 정보</h3>
-    <table style="width:100%; border-collapse:collapse; font-size:13px; border:1px solid #e5e7eb; border-radius:6px; overflow:hidden;">
+    <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:13px; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
       <tr>
-        <th style="background:#f9fafb; text-align:left; padding:8px; width:150px; border-bottom:1px solid #eee;">Type</th>
-        <td style="padding:8px; border-bottom:1px solid #eee;">{{type}}</td>
+        <th style="background:#f9fafb; text-align:left; padding:10px; width:160px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;">Type</th>
+        <td style="padding:10px; border-bottom:1px solid #e5e7eb;">{{type}}</td>
       </tr>
       <tr>
-        <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">Model</th>
-        <td style="padding:8px; border-bottom:1px solid #eee;">{{model}}</td>
+        <th style="background:#f9fafb; text-align:left; padding:10px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;">Model</th>
+        <td style="padding:10px; border-bottom:1px solid #e5e7eb;">{{model}}</td>
       </tr>
       <tr>
-        <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">적용 날짜</th>
-        <td style="padding:8px; border-bottom:1px solid #eee;">{{applied_at}}</td>
+        <th style="background:#f9fafb; text-align:left; padding:10px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;">적용 날짜</th>
+        <td style="padding:10px; border-bottom:1px solid #e5e7eb;">{{applied_at}}</td>
       </tr>
       <tr>
-        <th style="background:#f9fafb; text-align:left; padding:8px;">적용자 ID</th>
-        <td style="padding:8px;">{{applied_by}}</td>
+        <th style="background:#f9fafb; text-align:left; padding:10px; border-right:1px solid #e5e7eb;">적용자 ID</th>
+        <td style="padding:10px;">{{applied_by}}</td>
       </tr>
     </table>
 
     <!-- 시뮬레이션 정보 -->
     <h3 style="font-size:14px; margin:24px 0 8px 0; color:#111;">적용에 사용된 내용 정보 (시뮬레이션)</h3>
-    <table style="width:100%; border-collapse:collapse; font-size:13px; border:1px solid #e5e7eb; border-radius:6px; overflow:hidden;">
+    <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:13px; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
       <tr>
-        <th style="background:#f9fafb; text-align:left; padding:8px; width:150px; border-bottom:1px solid #eee;">시뮬레이션 타이틀</th>
-        <td style="padding:8px; border-bottom:1px solid #eee;">{{sim_title}}</td>
+        <th style="background:#f9fafb; text-align:left; padding:10px; width:160px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;">시뮬레이션 타이틀</th>
+        <td style="padding:10px; border-bottom:1px solid #e5e7eb;">{{sim_title}}</td>
       </tr>
       <tr>
-        <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">시뮬레이션 등록 날짜</th>
-        <td style="padding:8px; border-bottom:1px solid #eee;">{{sim_created_at}}</td>
+        <th style="background:#f9fafb; text-align:left; padding:10px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;">시뮬레이션 등록 날짜</th>
+        <td style="padding:10px; border-bottom:1px solid #e5e7eb;">{{sim_created_at}}</td>
       </tr>
       <tr>
-        <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">장비명</th>
-        <td style="padding:8px; border-bottom:1px solid #eee;">{{equipment_name}}</td>
+        <th style="background:#f9fafb; text-align:left; padding:10px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;">장비명</th>
+        <td style="padding:10px; border-bottom:1px solid #e5e7eb;">{{equipment_name}}</td>
       </tr>
       <tr>
-        <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">상태</th>
-        <td style="padding:8px; border-bottom:1px solid #eee;">{{status}}</td>
+        <th style="background:#f9fafb; text-align:left; padding:10px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;">상태</th>
+        <td style="padding:10px; border-bottom:1px solid #e5e7eb;">{{status}}</td>
       </tr>
       <tr>
-        <th style="background:#f9fafb; text-align:left; padding:8px;">시뮬레이션 실행 날짜</th>
-        <td style="padding:8px;">{{sim_run_at}}</td>
+        <th style="background:#f9fafb; text-align:left; padding:10px; border-right:1px solid #e5e7eb;">시뮬레이션 실행 날짜</th>
+        <td style="padding:10px;">{{sim_run_at}}</td>
       </tr>
     </table>
 
-    <!-- 버튼 -->
+    <!-- 버튼: 왼쪽 정렬 -->
     <p style="margin-top:24px;">
-      <a href="{{site_url}}" 
+      <a href="{{site_url}}"
          style="background:#2563eb; color:#fff; padding:10px 20px; border-radius:6px; text-decoration:none; font-size:13px; display:inline-block;">
         사이트로 이동
       </a>
