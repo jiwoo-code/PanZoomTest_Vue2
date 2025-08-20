@@ -1,140 +1,176 @@
-POST로 바꾸고, 기존 RowDto를 중첩해 받는 신규 DTO로 깔끔히 처리하는 예시를 드릴게요.
-기존 Map 응답 구조(status, algorithmKey)는 유지하고, 이메일 처리까지 포함합니다.
+요구사항 반영 요약:
+
+POST JSON 받기
+
+요청 DTO는 기존 RowDto를 중첩 사용
+
+서비스에서 1~10단계 트랜잭션 성공 시 true 반환
+
+이메일 전송은 서비스의 public 메서드로 캡슐화 (템플릿은 private 함수)
+
+컨트롤러 응답은 Map: status, algorithmKey, emailStatus 딱 3개
+
+Vue2에서 호출/표시 예시 제공
+
 
 
 ---
 
-1) 요청 DTO (신규) — 기존 RowDto를 포함
+백엔드 코드 (Spring Boot + MyBatis)
+
+요청 DTO (신규) — 기존 RowDto 포함
 
 // imports
 import lombok.Data;
 
-/** 기존에 사용하던 RowDto는 그대로 재사용합니다. */
 @Data
 public class ProcessPostRequest {
     private String type;
     private String model;
     private String key;
 
-    private RowDto rowData;     // <-- 기존 DTO를 중첩 사용
+    /** 기존에 사용하던 RowDto를 그대로 중첩합니다.
+     *  예) appliedAt, appliedBy, simTitle, simCreatedAt, equipmentName, status, simRunAt 등 */
+    private RowDto rowData;
 
     // 이메일 관련(선택)
-    private String emailTo;       // 수신자
+    private String emailTo;       // 수신자(없으면 이메일 발송 스킵)
     private String siteUrl;       // 버튼 링크
-    private String supportEmail;  // 푸터 문의 메일
-    private String subject;       // (옵션) 메일 제목 직접 지정 시
+    private String supportEmail;  // 푸터 문의 메일(필요 시 템플릿에 넣기)
+    private String subject;       // 제목 오버라이드(없으면 "type - model 변경 알림")
 }
 
-> RowDto 안에 아래 필드들이 있다고 가정합니다(프로젝트 기준에 맞춰 사용하세요):
-appliedAt, appliedBy, simTitle, simCreatedAt, equipmentName, status, simRunAt
+> ⚠️ RowDto 안의 필드명은 프로젝트에 맞게 이미 존재한다고 가정합니다.
 
 
 
 
 ---
 
-2) 컨트롤러 (POST JSON, Map 응답 + 이메일 발송)
+컨트롤러 (POST, try/catch 없음, Map 응답 키 3개)
 
 // imports
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
-@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/process")
 public class ProcessController {
 
-    private final ProcessService processService; // 1~10 단계 트랜잭션
-    private final EmailService emailService;     // HTML 메일 발송
+    private final ProcessService processService;
 
     @PostMapping("/run")
-    public ResponseEntity<Map<String, Object>> run(@RequestBody ProcessPostRequest req) {
+    public ResponseEntity<Map<String, Object>> run(@RequestBody ProcessPostRequest req) throws Exception {
+        // 1) 트랜잭션 처리 (실패 시 예외 → 전역 핸들러)
+        boolean ok = processService.runAtomic(req.getType(), req.getModel(), req.getKey());
+
+        // 2) 커밋 이후 이메일 발송 (서비스에 위임)
+        boolean emailOk = processService.sendProcessEmail(req);
+
+        // 3) 필요한 키만 넣어서 반환
         Map<String, Object> res = new LinkedHashMap<>();
-        List<String> messages = new ArrayList<>();
+        res.put("status", ok);
+        res.put("algorithmKey", req.getKey());
+        res.put("emailStatus", emailOk);
 
-        try {
-            // 1) 트랜잭션 처리 (실패 시 예외 → 롤백)
-            boolean ok = processService.runAtomic(req.getType(), req.getModel(), req.getKey());
-
-            // 2) 커밋 이후 이메일 발송 (emailTo가 있으면 시도)
-            boolean emailOk = false;
-            if (req.getEmailTo() != null && !req.getEmailTo().isBlank()) {
-                try {
-                    String subject = (req.getSubject() != null && !req.getSubject().isBlank())
-                            ? req.getSubject()
-                            : req.getType() + " - " + req.getModel() + " 변경 알림";
-
-                    String html = EmailTemplates.abChangeHtml(
-                            req.getType(), req.getModel(),
-                            // rowData에서 본문 값 꺼내기 (null-safe)
-                            nv(req.getRowData() != null ? req.getRowData().getAppliedAt()     : null),
-                            nv(req.getRowData() != null ? req.getRowData().getAppliedBy()     : null),
-                            nv(req.getRowData() != null ? req.getRowData().getSimTitle()      : null),
-                            nv(req.getRowData() != null ? req.getRowData().getSimCreatedAt()  : null),
-                            nv(req.getRowData() != null ? req.getRowData().getEquipmentName() : null),
-                            nv(req.getRowData() != null ? req.getRowData().getStatus()        : null),
-                            nv(req.getRowData() != null ? req.getRowData().getSimRunAt()      : null),
-                            nv(req.getSiteUrl()),
-                            nv(req.getSupportEmail())
-                    );
-
-                    emailOk = emailService.sendHtml(req.getEmailTo(), subject, html);
-                } catch (Exception ex) {
-                    log.warn("메일 전송 실패: {}", ex.getMessage(), ex);
-                    emailOk = false;
-                }
-            }
-
-            // 3) Map 응답 (기존 키 + emailStatus + messages)
-            res.put("status", ok);
-            res.put("algorithmKey", req.getKey());
-            res.put("emailStatus", emailOk);
-
-            // (선택) 서버에서 메시지를 내려주고 싶다면:
-            messages.add("알고리즘이 성공적으로 변경되었습니다.");
-            messages.add(emailOk ? "메일 전송이 성공하였습니다." : "메일 전송이 실패하였습니다.");
-            res.put("messages", messages);
-
-            return ResponseEntity.ok(res);
-
-        } catch (Exception ex) {
-            // 트랜잭션 실패 → 이미 롤백됨
-            log.warn("프로세스 실패(롤백): {}", ex.getMessage(), ex);
-            res.put("status", false);
-            res.put("algorithmKey", req.getKey());
-            res.put("emailStatus", null); // 시도 안 함
-            messages.add("알고리즘 변경에 실패하였습니다.");
-            res.put("messages", messages);
-            return ResponseEntity.ok(res);
-        }
+        return ResponseEntity.ok(res);
     }
-
-    // null-safe helper
-    private static String nv(String s) { return s == null ? "" : s; }
 }
 
 
 ---
 
-3) 이메일 템플릿 (지금까지 쓰던 카드형 그대로)
+서비스 인터페이스
 
-필요 시 그대로 재사용하세요. (치환은 컨트롤러에서 값 전달)
+public interface ProcessService {
+    /** 1~10 단계: 예외 없이 끝까지 실행되면 true 반환, 중간 실패 시 예외 throw(→롤백) */
+    boolean runAtomic(String type, String model, String key) throws Exception;
 
-public final class EmailTemplates {
-    private EmailTemplates() {}
+    /** 이메일 발송: 수신자 없으면 false 반환(시도 안 함). 템플릿/치환/발송은 내부에서 처리 */
+    boolean sendProcessEmail(ProcessPostRequest req) throws Exception;
+}
 
-    public static String abChangeHtml(
-            String type, String model,
-            String appliedAt, String appliedBy,
-            String simTitle, String simCreatedAt,
-            String equipmentName, String status, String simRunAt,
-            String siteUrl, String supportEmail
-    ) {
+
+---
+
+서비스 구현 (트랜잭션 + 이메일, 템플릿은 private)
+
+// imports
+import lombok.RequiredArgsConstructor;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import javax.mail.internet.MimeMessage;
+
+@Service
+@RequiredArgsConstructor
+public class ProcessServiceImpl implements ProcessService {
+
+    // private final WorkMapper workMapper;
+    // private final RefMapper refMapper;
+    // private final BackupMapper backupMapper;
+    private final JavaMailSender mailSender;
+
+    @Override
+    @Transactional(readOnly = false, rollbackFor = Exception.class)
+    public boolean runAtomic(String type, String model, String key) throws Exception {
+        // 1) work 2테이블 조회(type, model)
+        // 2) 결과 검증(없으면 throw)
+        // 3) ref 2테이블 조회(key)
+        // 4) 결과 검증(없으면 throw)
+        // 5) work 삭제(type, model)
+        // 6) 삭제 결과 검증
+        // 7) ref -> work 삽입
+        // 8) 삽입 결과 검증
+        // 9) backup 삽입
+        // 10) 백업 결과 검증
+        // (중간 문제 시 적절한 예외 throw → 전체 롤백)
+        return true; // 정상 종료 → 커밋
+    }
+
+    @Override
+    public boolean sendProcessEmail(ProcessPostRequest req) throws Exception {
+        // 수신자 없으면 발송 스킵
+        if (req.getEmailTo() == null || req.getEmailTo().isBlank()) {
+            return false;
+        }
+
+        String subject = (req.getSubject() != null && !req.getSubject().isBlank())
+                ? req.getSubject()
+                : req.getType() + " - " + req.getModel() + " 변경 알림";
+
+        String html = buildEmailHtml(req); // private 빌더
+
+        MimeMessage msg = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(msg, "UTF-8");
+        helper.setTo(req.getEmailTo());
+        helper.setSubject(subject);
+        helper.setText(html, true); // HTML 모드
+        mailSender.send(msg);
+
+        return true;
+    }
+
+    /** 이메일 템플릿: 요청 DTO + RowDto의 값을 치환해서 HTML 생성 */
+    private String buildEmailHtml(ProcessPostRequest req) {
+        RowDto r = req.getRowData();
+        String appliedAt     = nv(r != null ? r.getAppliedAt()     : null);
+        String appliedBy     = nv(r != null ? r.getAppliedBy()     : null);
+        String simTitle      = nv(r != null ? r.getSimTitle()      : null);
+        String simCreatedAt  = nv(r != null ? r.getSimCreatedAt()  : null);
+        String equipmentName = nv(r != null ? r.getEquipmentName() : null);
+        String status        = nv(r != null ? r.getStatus()        : null);
+        String simRunAt      = nv(r != null ? r.getSimRunAt()      : null);
+        String siteUrl       = nv(req.getSiteUrl());
+        // String supportEmail  = nv(req.getSupportEmail()); // 필요시 푸터 문구에 넣기
+
         String tpl =
             "<div style=\"max-width:600px; font-family:sans-serif; border-radius:8px; border:1px solid #e5e7eb; overflow:hidden;\">" +
             "  <div style=\"background:#1f2937; color:#fff; padding:16px;\">" +
@@ -165,43 +201,135 @@ public final class EmailTemplates {
             "</div>";
 
         return tpl
-            .replace("{{type}}", safe(type))
-            .replace("{{model}}", safe(model))
-            .replace("{{applied_at}}", safe(appliedAt))
-            .replace("{{applied_by}}", safe(appliedBy))
-            .replace("{{sim_title}}", safe(simTitle))
-            .replace("{{sim_created_at}}", safe(simCreatedAt))
-            .replace("{{equipment_name}}", safe(equipmentName))
-            .replace("{{status}}", safe(status))
-            .replace("{{sim_run_at}}", safe(simRunAt))
-            .replace("{{site_url}}", safe(siteUrl));
+                .replace("{{type}}", safe(req.getType()))
+                .replace("{{model}}", safe(req.getModel()))
+                .replace("{{applied_at}}", appliedAt)
+                .replace("{{applied_by}}", appliedBy)
+                .replace("{{sim_title}}", simTitle)
+                .replace("{{sim_created_at}}", simCreatedAt)
+                .replace("{{equipment_name}}", equipmentName)
+                .replace("{{status}}", status)
+                .replace("{{sim_run_at}}", simRunAt)
+                .replace("{{site_url}}", siteUrl);
     }
 
-    private static String safe(String v) { return v == null ? "" : v; }
+    private static String nv(String s)   { return s == null ? "" : s; }
+    private static String safe(String s) { return s == null ? "" : s; }
 }
+
+> 이메일은 트랜잭션 이후 실행되므로, 실패해도 DB 커밋에는 영향 없습니다.
+(필요하면 아웃박스 패턴으로 재시도도 가능)
+
+
 
 
 ---
 
-4) 서비스 시그니처 (변경 없음)
+프론트(Vue 2) 코드 예시
 
-public interface ProcessService {
-    /** 성공 시 true 반환(예외 없이 끝), 실패 시 예외 throw → 롤백 */
-    boolean runAtomic(String type, String model, String key) throws Exception;
-}
+아래는 axios 사용 예시입니다. (뷰에서 status/emailStatus 만으로 메시지 분기)
+
+<!-- Example.vue -->
+<template>
+  <div>
+    <form @submit.prevent="onSubmit">
+      <!-- 필요한 입력들... -->
+      <button type="submit">적용 실행</button>
+    </form>
+
+    <div v-if="loading">처리 중...</div>
+
+    <div v-if="resp">
+      <p>status: {{ resp.status }}</p>
+      <p>algorithmKey: {{ resp.algorithmKey }}</p>
+      <p>emailStatus: {{ resp.emailStatus }}</p>
+
+      <p v-if="resp.status">알고리즘이 성공적으로 변경되었습니다.</p>
+      <p v-else>알고리즘 변경에 실패하였습니다.</p>
+
+      <p v-if="resp.status && resp.emailStatus === true">메일 전송이 성공하였습니다.</p>
+      <p v-if="resp.status && resp.emailStatus === false">메일 전송이 실패하였습니다.</p>
+      <p v-if="resp.status && resp.emailStatus === null">메일 전송을 시도하지 않았습니다.</p>
+    </div>
+
+    <div v-if="error" style="color:red;">에러: {{ error }}</div>
+  </div>
+</template>
+
+<script>
+// imports
+import axios from 'axios';
+
+export default {
+  name: 'Example',
+  data() {
+    return {
+      loading: false,
+      resp: null,
+      error: null,
+      // 폼 예시 데이터 (RowDto 포함)
+      form: {
+        type: 'A',
+        model: 'MODEL-42',
+        key: 'K123',
+        emailTo: 'user@example.com',
+        siteUrl: 'https://app.example.com/detail?id=42',
+        supportEmail: 'support@example.com',
+        subject: '',
+
+        rowData: {
+          appliedAt: '2025-08-19 10:15',
+          appliedBy: 'jiwoo',
+          simTitle: 'Compounded Loss v3',
+          simCreatedAt: '2025-08-14 12:33',
+          equipmentName: 'EQP-7G Delta',
+          status: 'SUCCESS',
+          simRunAt: '2025-08-15 09:00'
+        }
+      }
+    };
+  },
+  methods: {
+    async onSubmit() {
+      this.loading = true;
+      this.error = null;
+      this.resp = null;
+
+      try {
+        const { data } = await axios.post('/api/process/run', this.form, {
+          headers: { 'Content-Type': 'application/json' }
+        });
+        // 성공/실패 모두 JSON을 기대 (전역 예외 핸들러 정책에 따라 다름)
+        this.resp = data;
+      } catch (err) {
+        // 서버가 500 등 에러 코드를 보낸 경우
+        this.error = (err.response && err.response.data && err.response.data.message)
+          ? err.response.data.message
+          : err.message;
+      } finally {
+        this.loading = false;
+      }
+    }
+  }
+};
+</script>
+
+> 서버 전역 예외 핸들러가 항상 200 + 고정 JSON으로 주도록 되어 있다면, catch에서가 아니라 then 블록에서 data.status 로직만 보시면 됩니다.
+반대로, 실패 시 500이면 위 catch 로 진입합니다.
+
+
 
 
 ---
 
-깔끔 포인트 (추천)
+마무리 팁
 
-Map 유지하되 키를 고정: status, algorithmKey, emailStatus, messages
-→ 뷰에서는 기존 로직 재사용 + 이메일 결과만 추가로 분기하면 끝.
+응답 Map 최소화(요구대로 3키) → 프론트 로직 심플.
 
-URL/바디에서 넘어오는 날짜/시간 포맷은 서버에서 한 번 정규화(YYYY-MM-DD HH:mm)하면 메일/뷰 모두 일관성 유지.
+메일 템플릿은 서비스 private 로 숨겨서 컨트롤러 가독성 확보.
 
-장기적으로는 응답 DTO로 전환하면 타입 안정성과 가독성이 더 좋아집니다. (원하시면 바로 변환안 드릴게요)
+장기적으로는 Map 대신 응답 DTO 사용 추천(타입 안정성↑).
 
 
-필요하시면 RowDto의 실제 필드명에 맞춰 컨트롤러 치환 부분을 정확히 바꿔서 다시 드릴게요.
+필요하면 RowDto 실제 필드명 맞춰 템플릿 치환부를 바로 조정해 드릴게요.
 
