@@ -389,3 +389,92 @@ siteUrl 비었으면 버튼 미표시 ✔️
 
 필요하면 RowDto 실제 필드명에 맞춰 서비스 템플릿 치환부를 바로 수정해 드릴게요.
 
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+public class MailTemplateBuilder {
+
+    // HTML 줄바꿈 추가
+    private static String addLine(String value) {
+        return value + "\n";
+    }
+
+    // HTML 태그 없이 값만 추가 (null 방지)
+    private static String addValue(String value) {
+        return value == null ? "" : value;
+    }
+
+    // <tr><td> 구조의 행 추가
+    private static String addRow(String label, String value) {
+        return "  <tr>"
+             + "<th style='background:#f9fafb; text-align:left; padding:10px; width:160px; border:1px solid #e5e7eb;'>"
+             + label
+             + "</th>"
+             + "<td style='padding:10px; border:1px solid #e5e7eb;'>"
+             + addValue(value)
+             + "</td>"
+             + "</tr>\n";
+    }
+
+    // 메일 본문 생성
+    public static String buildMailBody(String type, String model, String appliedAt, String appliedBy,
+                                       String simTitle, String simCreatedAt, String equipmentName,
+                                       String status, String simRunAt, String siteUrl) {
+
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("<div style='max-width:600px; font-family:sans-serif; border-radius:8px; border:1px solid #e5e7eb; overflow:hidden;'>\n");
+
+        // 헤더
+        sb.append("  <div style='background:#1f2937; color:#fff; padding:16px;'>\n");
+        sb.append("    <p style='margin:0 0 4px 0; font-size:13px; color:#d1d5db;'>알고리즘 변경 알림</p>\n");
+        sb.append("    <p style='font-size:18px; font-weight:bold; margin:0;'>")
+          .append(type).append(" - ").append(model).append(" 이(가) 변경되었습니다.</p>\n");
+        sb.append("  </div>\n");
+
+        // 본문
+        sb.append("  <div style='padding:16px; background:#fff;'>\n");
+
+        // 적용 정보
+        sb.append("    <h3 style='font-size:14px; margin:0 0 8px 0; color:#111;'>적용 정보</h3>\n");
+        sb.append("    <table style='width:100%; border-collapse:collapse; font-size:13px; border:1px solid #e5e7eb; border-radius:8px;'>\n");
+        sb.append(addRow("Type", type));
+        sb.append(addRow("Model", model));
+        sb.append(addRow("적용 날짜", appliedAt));
+        sb.append(addRow("적용자 ID", appliedBy));
+        sb.append("    </table>\n");
+
+        // 시뮬레이션 정보
+        sb.append("    <h3 style='font-size:14px; margin:24px 0 8px 0; color:#111;'>적용에 사용된 내용 정보 (시뮬레이션)</h3>\n");
+        sb.append("    <table style='width:100%; border-collapse:collapse; font-size:13px; border:1px solid #e5e7eb; border-radius:8px;'>\n");
+        sb.append(addRow("시뮬레이션 타이틀", simTitle));
+        sb.append(addRow("시뮬레이션 등록 날짜", simCreatedAt));
+        sb.append(addRow("장비명", equipmentName));
+        sb.append(addRow("상태", status));
+        sb.append(addRow("시뮬레이션 실행 날짜", simRunAt));
+        sb.append("    </table>\n");
+
+        // 버튼 (URL 있을 때만)
+        if (siteUrl != null && !siteUrl.isEmpty()) {
+            sb.append("    <p style='margin-top:24px;'>\n");
+            sb.append("      <a href='").append(siteUrl).append("' ")
+              .append("style='background:#2563eb; color:#fff; padding:10px 20px; border-radius:6px; text-decoration:none; font-size:13px; display:inline-block;'>")
+              .append("사이트로 이동</a>\n");
+            sb.append("    </p>\n");
+        }
+
+        // 안내 문구
+        sb.append("    <p style='margin:24px 0 0 0; font-size:12px; color:#666;'>\n");
+        sb.append("      이 메일은 시스템에 의해 자동 발송되었습니다.\n");
+        sb.append("    </p>\n");
+
+        sb.append("  </div>\n");
+        sb.append("</div>\n");
+
+        return sb.toString();
+    }
+}
