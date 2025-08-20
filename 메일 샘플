@@ -1,65 +1,73 @@
-<div style="max-width:600px; font-family:sans-serif;">
+<div style="max-width:600px; font-family:sans-serif; border-radius:8px; border:1px solid #e5e7eb; overflow:hidden;">
 
-  <p style="font-size:18px; font-weight:bold; margin:0 0 8px 0;">
-    {{type}} - {{model}} 이(가) 변경되었습니다.
-  </p>
-  <p style="color:#555; font-size:13px; margin:0 0 20px 0;">
-    알고리즘 변경 알림
-  </p>
+  <!-- 헤더 -->
+  <div style="background:#1f2937; color:#fff; padding:16px;">
+    <p style="font-size:18px; font-weight:bold; margin:0;">
+      {{type}} - {{model}} 이(가) 변경되었습니다.
+    </p>
+    <p style="margin:4px 0 0 0; font-size:13px; color:#d1d5db;">
+      알고리즘 변경 알림
+    </p>
+  </div>
 
-  <h3 style="font-size:14px; margin:16px 0 8px 0; color:#111;">적용 정보</h3>
-  <table style="width:100%; border-collapse:collapse; font-size:13px; border:1px solid #e5e7eb;">
-    <tr>
-      <th style="background:#f9fafb; text-align:left; padding:8px; width:150px; border-bottom:1px solid #eee;">Type</th>
-      <td style="padding:8px; border-bottom:1px solid #eee;">{{type}}</td>
-    </tr>
-    <tr>
-      <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">Model</th>
-      <td style="padding:8px; border-bottom:1px solid #eee;">{{model}}</td>
-    </tr>
-    <tr>
-      <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">적용 날짜</th>
-      <td style="padding:8px; border-bottom:1px solid #eee;">{{applied_at}}</td>
-    </tr>
-    <tr>
-      <th style="background:#f9fafb; text-align:left; padding:8px;">적용자 ID</th>
-      <td style="padding:8px;">{{applied_by}}</td>
-    </tr>
-  </table>
+  <!-- 적용 정보 -->
+  <div style="padding:16px; background:#fff;">
+    <h3 style="font-size:14px; margin:0 0 8px 0; color:#111;">적용 정보</h3>
+    <table style="width:100%; border-collapse:collapse; font-size:13px; border:1px solid #e5e7eb; border-radius:6px; overflow:hidden;">
+      <tr>
+        <th style="background:#f9fafb; text-align:left; padding:8px; width:150px; border-bottom:1px solid #eee;">Type</th>
+        <td style="padding:8px; border-bottom:1px solid #eee;">{{type}}</td>
+      </tr>
+      <tr>
+        <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">Model</th>
+        <td style="padding:8px; border-bottom:1px solid #eee;">{{model}}</td>
+      </tr>
+      <tr>
+        <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">적용 날짜</th>
+        <td style="padding:8px; border-bottom:1px solid #eee;">{{applied_at}}</td>
+      </tr>
+      <tr>
+        <th style="background:#f9fafb; text-align:left; padding:8px;">적용자 ID</th>
+        <td style="padding:8px;">{{applied_by}}</td>
+      </tr>
+    </table>
 
-  <h3 style="font-size:14px; margin:24px 0 8px 0; color:#111;">적용에 사용된 내용 정보 (시뮬레이션)</h3>
-  <table style="width:100%; border-collapse:collapse; font-size:13px; border:1px solid #e5e7eb;">
-    <tr>
-      <th style="background:#f9fafb; text-align:left; padding:8px; width:150px; border-bottom:1px solid #eee;">시뮬레이션 타이틀</th>
-      <td style="padding:8px; border-bottom:1px solid #eee;">{{sim_title}}</td>
-    </tr>
-    <tr>
-      <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">시뮬레이션 등록 날짜</th>
-      <td style="padding:8px; border-bottom:1px solid #eee;">{{sim_created_at}}</td>
-    </tr>
-    <tr>
-      <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">장비명</th>
-      <td style="padding:8px; border-bottom:1px solid #eee;">{{equipment_name}}</td>
-    </tr>
-    <tr>
-      <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">상태</th>
-      <td style="padding:8px; border-bottom:1px solid #eee;">{{status}}</td>
-    </tr>
-    <tr>
-      <th style="background:#f9fafb; text-align:left; padding:8px;">시뮬레이션 실행 날짜</th>
-      <td style="padding:8px;">{{sim_run_at}}</td>
-    </tr>
-  </table>
+    <!-- 시뮬레이션 정보 -->
+    <h3 style="font-size:14px; margin:24px 0 8px 0; color:#111;">적용에 사용된 내용 정보 (시뮬레이션)</h3>
+    <table style="width:100%; border-collapse:collapse; font-size:13px; border:1px solid #e5e7eb; border-radius:6px; overflow:hidden;">
+      <tr>
+        <th style="background:#f9fafb; text-align:left; padding:8px; width:150px; border-bottom:1px solid #eee;">시뮬레이션 타이틀</th>
+        <td style="padding:8px; border-bottom:1px solid #eee;">{{sim_title}}</td>
+      </tr>
+      <tr>
+        <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">시뮬레이션 등록 날짜</th>
+        <td style="padding:8px; border-bottom:1px solid #eee;">{{sim_created_at}}</td>
+      </tr>
+      <tr>
+        <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">장비명</th>
+        <td style="padding:8px; border-bottom:1px solid #eee;">{{equipment_name}}</td>
+      </tr>
+      <tr>
+        <th style="background:#f9fafb; text-align:left; padding:8px; border-bottom:1px solid #eee;">상태</th>
+        <td style="padding:8px; border-bottom:1px solid #eee;">{{status}}</td>
+      </tr>
+      <tr>
+        <th style="background:#f9fafb; text-align:left; padding:8px;">시뮬레이션 실행 날짜</th>
+        <td style="padding:8px;">{{sim_run_at}}</td>
+      </tr>
+    </table>
 
-  <p style="margin:24px 0 8px 0; font-size:12px; color:#666;">
-    이 메일은 시스템에 의해 자동 발송되었습니다. 문의: {{support_email}}
-  </p>
+    <!-- 버튼 -->
+    <p style="margin-top:24px;">
+      <a href="{{site_url}}" 
+         style="background:#2563eb; color:#fff; padding:10px 20px; border-radius:6px; text-decoration:none; font-size:13px; display:inline-block;">
+        사이트로 이동
+      </a>
+    </p>
 
-  <p style="margin-top:16px;">
-    <a href="{{site_url}}" 
-       style="background:#2563eb; color:#fff; padding:10px 20px; border-radius:6px; text-decoration:none; font-size:13px; display:inline-block;">
-      사이트로 이동
-    </a>
-  </p>
-
+    <!-- 안내 문구 -->
+    <p style="margin:24px 0 0 0; font-size:12px; color:#666;">
+      이 메일은 시스템에 의해 자동 발송되었습니다. 문의: {{support_email}}
+    </p>
+  </div>
 </div>
