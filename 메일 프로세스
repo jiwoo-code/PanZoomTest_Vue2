@@ -1,0 +1,207 @@
+POST로 바꾸고, 기존 RowDto를 중첩해 받는 신규 DTO로 깔끔히 처리하는 예시를 드릴게요.
+기존 Map 응답 구조(status, algorithmKey)는 유지하고, 이메일 처리까지 포함합니다.
+
+
+---
+
+1) 요청 DTO (신규) — 기존 RowDto를 포함
+
+// imports
+import lombok.Data;
+
+/** 기존에 사용하던 RowDto는 그대로 재사용합니다. */
+@Data
+public class ProcessPostRequest {
+    private String type;
+    private String model;
+    private String key;
+
+    private RowDto rowData;     // <-- 기존 DTO를 중첩 사용
+
+    // 이메일 관련(선택)
+    private String emailTo;       // 수신자
+    private String siteUrl;       // 버튼 링크
+    private String supportEmail;  // 푸터 문의 메일
+    private String subject;       // (옵션) 메일 제목 직접 지정 시
+}
+
+> RowDto 안에 아래 필드들이 있다고 가정합니다(프로젝트 기준에 맞춰 사용하세요):
+appliedAt, appliedBy, simTitle, simCreatedAt, equipmentName, status, simRunAt
+
+
+
+
+---
+
+2) 컨트롤러 (POST JSON, Map 응답 + 이메일 발송)
+
+// imports
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@Slf4j
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/process")
+public class ProcessController {
+
+    private final ProcessService processService; // 1~10 단계 트랜잭션
+    private final EmailService emailService;     // HTML 메일 발송
+
+    @PostMapping("/run")
+    public ResponseEntity<Map<String, Object>> run(@RequestBody ProcessPostRequest req) {
+        Map<String, Object> res = new LinkedHashMap<>();
+        List<String> messages = new ArrayList<>();
+
+        try {
+            // 1) 트랜잭션 처리 (실패 시 예외 → 롤백)
+            boolean ok = processService.runAtomic(req.getType(), req.getModel(), req.getKey());
+
+            // 2) 커밋 이후 이메일 발송 (emailTo가 있으면 시도)
+            boolean emailOk = false;
+            if (req.getEmailTo() != null && !req.getEmailTo().isBlank()) {
+                try {
+                    String subject = (req.getSubject() != null && !req.getSubject().isBlank())
+                            ? req.getSubject()
+                            : req.getType() + " - " + req.getModel() + " 변경 알림";
+
+                    String html = EmailTemplates.abChangeHtml(
+                            req.getType(), req.getModel(),
+                            // rowData에서 본문 값 꺼내기 (null-safe)
+                            nv(req.getRowData() != null ? req.getRowData().getAppliedAt()     : null),
+                            nv(req.getRowData() != null ? req.getRowData().getAppliedBy()     : null),
+                            nv(req.getRowData() != null ? req.getRowData().getSimTitle()      : null),
+                            nv(req.getRowData() != null ? req.getRowData().getSimCreatedAt()  : null),
+                            nv(req.getRowData() != null ? req.getRowData().getEquipmentName() : null),
+                            nv(req.getRowData() != null ? req.getRowData().getStatus()        : null),
+                            nv(req.getRowData() != null ? req.getRowData().getSimRunAt()      : null),
+                            nv(req.getSiteUrl()),
+                            nv(req.getSupportEmail())
+                    );
+
+                    emailOk = emailService.sendHtml(req.getEmailTo(), subject, html);
+                } catch (Exception ex) {
+                    log.warn("메일 전송 실패: {}", ex.getMessage(), ex);
+                    emailOk = false;
+                }
+            }
+
+            // 3) Map 응답 (기존 키 + emailStatus + messages)
+            res.put("status", ok);
+            res.put("algorithmKey", req.getKey());
+            res.put("emailStatus", emailOk);
+
+            // (선택) 서버에서 메시지를 내려주고 싶다면:
+            messages.add("알고리즘이 성공적으로 변경되었습니다.");
+            messages.add(emailOk ? "메일 전송이 성공하였습니다." : "메일 전송이 실패하였습니다.");
+            res.put("messages", messages);
+
+            return ResponseEntity.ok(res);
+
+        } catch (Exception ex) {
+            // 트랜잭션 실패 → 이미 롤백됨
+            log.warn("프로세스 실패(롤백): {}", ex.getMessage(), ex);
+            res.put("status", false);
+            res.put("algorithmKey", req.getKey());
+            res.put("emailStatus", null); // 시도 안 함
+            messages.add("알고리즘 변경에 실패하였습니다.");
+            res.put("messages", messages);
+            return ResponseEntity.ok(res);
+        }
+    }
+
+    // null-safe helper
+    private static String nv(String s) { return s == null ? "" : s; }
+}
+
+
+---
+
+3) 이메일 템플릿 (지금까지 쓰던 카드형 그대로)
+
+필요 시 그대로 재사용하세요. (치환은 컨트롤러에서 값 전달)
+
+public final class EmailTemplates {
+    private EmailTemplates() {}
+
+    public static String abChangeHtml(
+            String type, String model,
+            String appliedAt, String appliedBy,
+            String simTitle, String simCreatedAt,
+            String equipmentName, String status, String simRunAt,
+            String siteUrl, String supportEmail
+    ) {
+        String tpl =
+            "<div style=\"max-width:600px; font-family:sans-serif; border-radius:8px; border:1px solid #e5e7eb; overflow:hidden;\">" +
+            "  <div style=\"background:#1f2937; color:#fff; padding:16px;\">" +
+            "    <p style=\"margin:0 0 4px 0; font-size:13px; color:#d1d5db;\">알고리즘 변경 알림</p>" +
+            "    <p style=\"font-size:18px; font-weight:bold; margin:0;\">" +
+            "      {{type}} - {{model}} 이(가) 변경되었습니다." +
+            "    </p>" +
+            "  </div>" +
+            "  <div style=\"padding:16px; background:#fff;\">" +
+            "    <h3 style=\"font-size:14px; margin:0 0 8px 0; color:#111;\">적용 정보</h3>" +
+            "    <table style=\"width:100%; border-collapse:separate; border-spacing:0; font-size:13px; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;\">" +
+            "      <tr><th style=\"background:#f9fafb; text-align:left; padding:10px; width:160px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;\">Type</th><td style=\"padding:10px; border-bottom:1px solid #e5e7eb;\">{{type}}</td></tr>" +
+            "      <tr><th style=\"background:#f9fafb; text-align:left; padding:10px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;\">Model</th><td style=\"padding:10px; border-bottom:1px solid #e5e7eb;\">{{model}}</td></tr>" +
+            "      <tr><th style=\"background:#f9fafb; text-align:left; padding:10px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;\">적용 날짜</th><td style=\"padding:10px; border-bottom:1px solid #e5e7eb;\">{{applied_at}}</td></tr>" +
+            "      <tr><th style=\"background:#f9fafb; text-align:left; padding:10px; border-right:1px solid #e5e7eb;\">적용자 ID</th><td style=\"padding:10px;\">{{applied_by}}</td></tr>" +
+            "    </table>" +
+            "    <h3 style=\"font-size:14px; margin:24px 0 8px 0; color:#111;\">적용에 사용된 내용 정보 (시뮬레이션)</h3>" +
+            "    <table style=\"width:100%; border-collapse:separate; border-spacing:0; font-size:13px; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;\">" +
+            "      <tr><th style=\"background:#f9fafb; text-align:left; padding:10px; width:160px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;\">시뮬레이션 타이틀</th><td style=\"padding:10px; border-bottom:1px solid #e5e7eb;\">{{sim_title}}</td></tr>" +
+            "      <tr><th style=\"background:#f9fafb; text-align:left; padding:10px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;\">시뮬레이션 등록 날짜</th><td style=\"padding:10px; border-bottom:1px solid #e5e7eb;\">{{sim_created_at}}</td></tr>" +
+            "      <tr><th style=\"background:#f9fafb; text-align:left; padding:10px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;\">장비명</th><td style=\"padding:10px; border-bottom:1px solid #e5e7eb;\">{{equipment_name}}</td></tr>" +
+            "      <tr><th style=\"background:#f9fafb; text-align:left; padding:10px; border-bottom:1px solid #e5e7eb; border-right:1px solid #e5e7eb;\">상태</th><td style=\"padding:10px; border-bottom:1px solid #e5e7eb;\">{{status}}</td></tr>" +
+            "      <tr><th style=\"background:#f9fafb; text-align:left; padding:10px; border-right:1px solid #e5e7eb;\">시뮬레이션 실행 날짜</th><td style=\"padding:10px;\">{{sim_run_at}}</td></tr>" +
+            "    </table>" +
+            "    <p style=\"margin-top:24px;\"><a href=\"{{site_url}}\" style=\"background:#2563eb; color:#fff; padding:10px 20px; border-radius:6px; text-decoration:none; font-size:13px; display:inline-block;\">사이트로 이동</a></p>" +
+            "    <p style=\"margin:24px 0 0 0; font-size:12px; color:#666;\">이 메일은 시스템에 의해 자동 발송되었습니다.</p>" +
+            "  </div>" +
+            "</div>";
+
+        return tpl
+            .replace("{{type}}", safe(type))
+            .replace("{{model}}", safe(model))
+            .replace("{{applied_at}}", safe(appliedAt))
+            .replace("{{applied_by}}", safe(appliedBy))
+            .replace("{{sim_title}}", safe(simTitle))
+            .replace("{{sim_created_at}}", safe(simCreatedAt))
+            .replace("{{equipment_name}}", safe(equipmentName))
+            .replace("{{status}}", safe(status))
+            .replace("{{sim_run_at}}", safe(simRunAt))
+            .replace("{{site_url}}", safe(siteUrl));
+    }
+
+    private static String safe(String v) { return v == null ? "" : v; }
+}
+
+
+---
+
+4) 서비스 시그니처 (변경 없음)
+
+public interface ProcessService {
+    /** 성공 시 true 반환(예외 없이 끝), 실패 시 예외 throw → 롤백 */
+    boolean runAtomic(String type, String model, String key) throws Exception;
+}
+
+
+---
+
+깔끔 포인트 (추천)
+
+Map 유지하되 키를 고정: status, algorithmKey, emailStatus, messages
+→ 뷰에서는 기존 로직 재사용 + 이메일 결과만 추가로 분기하면 끝.
+
+URL/바디에서 넘어오는 날짜/시간 포맷은 서버에서 한 번 정규화(YYYY-MM-DD HH:mm)하면 메일/뷰 모두 일관성 유지.
+
+장기적으로는 응답 DTO로 전환하면 타입 안정성과 가독성이 더 좋아집니다. (원하시면 바로 변환안 드릴게요)
+
+
+필요하시면 RowDto의 실제 필드명에 맞춰 컨트롤러 치환 부분을 정확히 바꿔서 다시 드릴게요.
+
