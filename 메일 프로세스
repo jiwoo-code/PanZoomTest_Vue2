@@ -117,6 +117,44 @@ public class ProcessServiceImpl implements ProcessService {
         return true; // 정상 종료 → 커밋
     }
 
+
+@Override
+public Map<String, Object> sendProcessEmail(ProcessPostRequest req) {
+    Map<String, Object> result = new HashMap<>();
+    try {
+        // ✅ 수신자 확인 (예: req.getRowData().getEmail())
+        if (req.getRowData() == null || req.getRowData().getEmail() == null || req.getRowData().getEmail().isEmpty()) {
+            result.put("drag", Map.of(
+                "resultCode", "fail",
+                "message", "수신자가 존재하지 않아 메일 발송을 중단했습니다."
+            ));
+            return result;
+        }
+
+        // ✅ 메일 템플릿 생성
+        String html = buildEmailTemplate(req);
+
+        // ✅ 외부 이메일 API 호출
+        String response = externalEmailApiCall(html);   // ← 여기가 실제 API 호출부
+
+        // ✅ JSON → Map 변환
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> parsed = mapper.readValue(response, Map.class);
+
+        result.putAll(parsed); // drag 키 그대로 유지
+    } catch (Exception e) {
+        // ✅ 실패 시에도 drag 키 보장
+        result.put("drag", Map.of(
+            "resultCode", "fail",
+            "message", "메일 발송 실패 (" + e.getMessage() + ")"
+        ));
+    }
+    return result;
+}
+
+
+
+
     @Override
     public boolean sendProcessEmail(ProcessPostRequest req) throws Exception {
         // 수신자 없으면 발송 스킵
