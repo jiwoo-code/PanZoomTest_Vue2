@@ -579,3 +579,115 @@ public class MailTemplateBuilder {
         return sb.toString();
     }
 }
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡ
+테스트코드
+
+// src/test/java/your/pkg/controller/ProcessControllerTest.java
+package your.pkg.controller;
+
+import your.pkg.service.ProcessService;
+import your.pkg.dto.ProcessPostRequest;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@WebMvcTest(controllers = ProcessController.class)
+class ProcessControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private ProcessService processService; // 실제 구현 대신 목 주입
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Test
+    @DisplayName("/api/process/run 정상 플로우: 트랜잭션 성공 + 이메일 결과 포함")
+    void run_ok() throws Exception {
+        // given: 서비스 동작을 목으로 정의
+        when(processService.runAtomic("A", "MODEL-42", "K123")).thenReturn(true);
+
+        Map<String, Object> drag = new HashMap<>();
+        drag.put("resultCode", "success");
+        drag.put("message", "메일 발송 성공");
+
+        Map<String, Object> emailResult = new HashMap<>();
+        emailResult.put("drag", drag);
+
+        when(processService.sendProcessEmail(any(ProcessPostRequest.class)))
+                .thenReturn(emailResult);
+
+        // 요청 페이로드
+        Map<String, Object> body = new HashMap<>();
+        body.put("type", "A");
+        body.put("model", "MODEL-42");
+        body.put("key", "K123");
+        body.put("emailTo", "user@example.com");
+        body.put("siteUrl", "https://app.example.com/detail?id=42");
+        body.put("supportEmail", "support@example.com");
+
+        Map<String, Object> rowData = new HashMap<>();
+        rowData.put("appliedAt", "2025-08-19 10:15");
+        rowData.put("appliedBy", "jiwoo");
+        rowData.put("simTitle", "Compounded Loss v3");
+        rowData.put("simCreatedAt", "2025-08-14 12:33");
+        rowData.put("equipmentName", "EQP-7G Delta");
+        rowData.put("status", "SUCCESS");
+        rowData.put("simRunAt", "2025-08-15 09:00");
+        body.put("rowData", rowData);
+
+        // when + then
+        mockMvc.perform(post("/api/process/run")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.status").value(true))
+               .andExpect(jsonPath("$.algorithmKey").value("K123"))
+               .andExpect(jsonPath("$.drag.resultCode").value("success"))
+               .andExpect(jsonPath("$.drag.message").value("메일 발송 성공"));
+
+        // (선택) 호출 검증
+        Mockito.verify(processService).runAtomic("A", "MODEL-42", "K123");
+        Mockito.verify(processService).sendProcessEmail(any(ProcessPostRequest.class));
+    }
+
+    @Test
+    @DisplayName("/api/process/run 실패 플로우: 트랜잭션 예외 → 전역 핸들러 동작 여부는 정책에 맞게")
+    void run_fail_transaction() throws Exception {
+        // 트랜잭션 예외 시뮬레이션
+        when(processService.runAtomic("A", "MODEL-42", "K123"))
+                .thenThrow(new IllegalStateException("검증 실패"));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("type", "A");
+        body.put("model", "MODEL-42");
+        body.put("key", "K123");
+        body.put("rowData", new HashMap<>());
+
+        mockMvc.perform(post("/api/process/run")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+               // 전역 예외 핸들러 정책에 따라 200 or 500 등으로 조정
+               .andExpect(status().is5xxServerError());
+    }
+}
