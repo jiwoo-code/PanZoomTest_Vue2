@@ -313,3 +313,27 @@ public class RefRow {
 필요하면 테이블/컬럼 실명 주시면 위 XML을 실행 가능한 수준으로 딱 맞게 커스터마이즈해서 드릴게요.
 늘처럼 깔끔하게 갑시다
 
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+-- 두 백업테이블의 현재 최대 version을 구하고, 그에 맞게 setval 수행
+WITH maxv AS (
+  SELECT COALESCE(MAX(v), 0)::bigint AS v
+  FROM (
+    SELECT MAX(version)::bigint AS v FROM schema_name.backup_table1
+    UNION ALL
+    SELECT MAX(version)::bigint AS v FROM schema_name.backup_table2
+  ) s
+)
+SELECT CASE
+  WHEN v = 0
+    THEN setval('schema_name.backup_version_seq'::regclass, 1, false)  -- 다음 nextval = 1
+  ELSE
+    setval('schema_name.backup_version_seq'::regclass, v, true)        -- 다음 nextval = v+1
+END
+FROM maxv;
