@@ -1,0 +1,267 @@
+<template>
+  <div class="wrapper">
+    <!-- Division: 유저 체크박스 컴포넌트 (실제 이름으로 교체 가능) -->
+    <DivisionCheckboxes
+      v-model="selectedDivisions"
+      :items="divisionItems"
+      @input="onDivisionInput"
+    />
+
+    <div class="toolbar">
+      <button type="button" @click="resetAll">전체 리셋</button>
+    </div>
+
+    <!-- Line / Model / Equipment: 유저 드롭다운 -->
+    <UserDropdown v-model="selectedLines"      :items="lineItems" />
+    <UserDropdown v-model="selectedModels"     :items="modelItems" />
+    <UserDropdown v-model="selectedEquipments" :items="equipmentItems" />
+  </div>
+</template>
+
+<script>
+// 대량 데이터 초기화 시 UI 프리즈 방지를 위한 파라미터
+const CHUNK_SIZE = 100;
+
+export default {
+  name: 'CascadingOrImmediateParent',
+
+  data() {
+    return {
+      // 원본 데이터(값만): [{ division, line, model, equipment }, ...]
+      sourceRows: [],
+
+      // 선택 상태(다중)
+      selectedDivisions: [],
+      selectedLines: [],
+      selectedModels: [],
+      selectedEquipments: [],
+
+      // 값 인덱스(집합)
+      divisionSet: new Set(),
+      lineSet: new Set(),
+      modelSet: new Set(),
+      equipmentSet: new Set(),
+
+      // 즉시 상위 레벨 → 하위 후보(OR 합집합) 맵
+      linesByDivisionMap: new Map(),    // division → Set(lines)
+      modelsByLineMap: new Map(),       // line     → Set(models)
+      equipmentsByModelMap: new Map(),  // model    → Set(equipments)
+
+      // 리셋 중 플래그(중복 호출 방지)
+      isResetting: false,
+
+      // 디바운스 타이머(연쇄 초기화 폭주 방지)
+      _debounce: { lines: null, models: null, equipments: null },
+    };
+  },
+
+  created() {
+    // 실제 사용 시: API 완료 후 initializeFromRawRows(rawRows) 호출
+    // 예)
+    // const rawRows = await fetch(...);
+    // this.initializeFromRawRows(rawRows);
+  },
+
+  computed: {
+    // Division 체크박스 아이템
+    divisionItems() {
+      return this.toOptionsSorted(this.divisionSet);
+    },
+
+    // Line: 상위 = Division (상위 선택 없으면 빈 배열)
+    lineItems() {
+      if (this.selectedDivisions.length === 0) return Object.freeze([]);
+      const candidate = this.unionFromMap(this.linesByDivisionMap, this.selectedDivisions);
+      if (!candidate || candidate.size === 0) return Object.freeze([]);
+      return this.toOptionsSorted(candidate);
+    },
+
+    // Model: 상위 = Line (상위 선택 없으면 빈 배열)
+    modelItems() {
+      if (this.selectedLines.length === 0) return Object.freeze([]);
+      const candidate = this.unionFromMap(this.modelsByLineMap, this.selectedLines);
+      if (!candidate || candidate.size === 0) return Object.freeze([]);
+      return this.toOptionsSorted(candidate);
+    },
+
+    // Equipment: 상위 = Model (상위 선택 없으면 빈 배열)
+    equipmentItems() {
+      if (this.selectedModels.length === 0) return Object.freeze([]);
+      const equipments = new Set();
+      for (const modelValue of this.selectedModels) {
+        const setForModel = this.equipmentsByModelMap.get(modelValue);
+        if (setForModel) for (const eqp of setForModel) equipments.add(eqp);
+      }
+      if (equipments.size === 0) return Object.freeze([]);
+      return this.toOptionsSorted(equipments);
+    },
+  },
+
+  watch: {
+    // 상위 변경 시, 하위 선택을 비우고(교체) computed로 아이템은 자동 갱신
+    selectedDivisions() {
+      this.clearSelectionWithDebounce('lines', () => {
+        this.selectedLines = [];
+        this.selectedModels = [];
+        this.selectedEquipments = [];
+      });
+    },
+    selectedLines() {
+      this.clearSelectionWithDebounce('models', () => {
+        this.selectedModels = [];
+        this.selectedEquipments = [];
+      });
+    },
+    selectedModels() {
+      this.clearSelectionWithDebounce('equipments', () => {
+        this.selectedEquipments = [];
+      });
+    },
+  },
+
+  beforeDestroy() {
+    this.clearAllDebounceTimers();
+  },
+
+  methods: {
+    /* ========================= 초기화 경로 ========================= */
+
+    // API/rawRows → 인덱스 구축 → Division 전체 체크
+    async initializeFromRawRows(rawRows) {
+      if (!Array.isArray(rawRows) || rawRows.length === 0) {
+        console.warn('initializeFromRawRows: 빈 데이터가 전달되었습니다.');
+        return;
+      }
+      this.sourceRows = Object.freeze([...rawRows]); // 얕은 복사 후 동결
+      await this.buildIndexesAsync();                // 청크 처리
+      this.selectedDivisions = Array.from(this.divisionSet).sort(); // 전체 체크(새 배열)
+    },
+
+    // 대량 인덱스 비동기 구축: UI 프리즈 방지
+    async buildIndexesAsync() {
+      this.clearIndexes();
+      const register = (mapRef, key, value) => {
+        if (!mapRef.has(key)) mapRef.set(key, new Set());
+        mapRef.get(key).add(value);
+      };
+
+      const rows = this.sourceRows;
+      const chunks = Math.ceil(rows.length / CHUNK_SIZE);
+
+      for (let c = 0; c < chunks; c++) {
+        const start = c * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, rows.length);
+
+        for (let i = start; i < end; i++) {
+          const row = rows[i];
+          if (!row || !row.division || !row.line || !row.model || !row.equipment) continue;
+
+          this.divisionSet.add(row.division);
+          this.lineSet.add(row.line);
+          this.modelSet.add(row.model);
+          this.equipmentSet.add(row.equipment);
+
+          register(this.linesByDivisionMap,   row.division, row.line);
+          register(this.modelsByLineMap,      row.line,     row.model);
+          register(this.equipmentsByModelMap, row.model,    row.equipment);
+        }
+
+        // 다음 프레임으로 양보 (DOM 여부와 무관하게 안정적으로 양보)
+        if (c < chunks - 1) {
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+    },
+
+    // 인덱스/맵 초기화
+    clearIndexes() {
+      this.divisionSet.clear();
+      this.lineSet.clear();
+      this.modelSet.clear();
+      this.equipmentSet.clear();
+      this.linesByDivisionMap.clear();
+      this.modelsByLineMap.clear();
+      this.equipmentsByModelMap.clear();
+    },
+
+    /* ========================= 계산/유틸 ========================= */
+
+    // OR 합집합: 선택 없으면 null (제한 없음의 의미)
+    unionFromMap(mapRef, selectedKeys) {
+      if (!selectedKeys || selectedKeys.length === 0) return null;
+      const unionSet = new Set();
+      for (const key of selectedKeys) {
+        const childSet = mapRef.get(key);
+        if (childSet) for (const v of childSet) unionSet.add(v);
+      }
+      return unionSet.size ? unionSet : null;
+    },
+
+    // 값(Set/Array) → [{ value, text }] (정렬 포함, 불변 반환)
+    toOptionsSorted(iterableValues) {
+      if (!iterableValues) return Object.freeze([]);
+      const arr = Array.isArray(iterableValues)
+        ? [...iterableValues]
+        : Array.from(iterableValues);
+      // 문자열 안전 정렬 (숫자/문자 혼재 대응)
+      arr.sort((a, b) => String(a).localeCompare(String(b)));
+      return Object.freeze(arr.map(value => ({ value, text: String(value) })));
+    },
+
+    /* ========================= 상호작용/리셋 ========================= */
+
+    // Division 체크박스 @input 훅(필요 시 확장)
+    onDivisionInput() { /* optional logging */ },
+
+    // 전체 리셋: Division 전체 체크 + 하위 선택 초기화
+    async resetAll() {
+      if (this.isResetting) return;
+      this.isResetting = true;
+      try {
+        this.selectedLines = [];
+        this.selectedModels = [];
+        this.selectedEquipments = [];
+        await this.$nextTick(); // 하위 초기화 반영 후
+        const allDivisions = Array.from(this.divisionSet).sort();
+        this.selectedDivisions = [...allDivisions]; // 새 배열 교체로 반응 보장
+      } finally {
+        this.isResetting = false;
+      }
+    },
+
+    /* ========================= 디바운스 ========================= */
+
+    clearSelectionWithDebounce(key, fn) {
+      const timer = this._debounce[key];
+      if (timer) clearTimeout(timer);
+      this._debounce[key] = setTimeout(() => {
+        fn();
+        this._debounce[key] = null;
+      }, 150);
+    },
+
+    clearAllDebounceTimers() {
+      for (const key of Object.keys(this._debounce)) {
+        if (this._debounce[key]) clearTimeout(this._debounce[key]);
+        this._debounce[key] = null;
+      }
+    },
+
+    /* ========================= 디버깅 보조 ========================= */
+
+    getSelectedData() {
+      return {
+        divisions: [...this.selectedDivisions],
+        lines: [...this.selectedLines],
+        models: [...this.selectedModels],
+        equipments: [...this.selectedEquipments],
+      };
+    },
+  }
+};
+</script>
+
+<style scoped>
+.wrapper { display: grid; gap: 12px; }
+.toolbar { display: flex; gap: 8px; align-items: center; }
+</style>
