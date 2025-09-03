@@ -1,0 +1,71 @@
+<template>
+  <div>
+    <!-- 데모 출력 -->
+    <p>scope 원본: {{ selectScope }}</p>
+    <p>line: {{ allSelected.line }}</p>
+    <p>model: {{ allSelected.model }}</p>
+    <p>eqp: {{ allSelected.eqp }}</p>
+  </div>
+</template>
+
+<script>
+/**
+ * @typedef {'all'|'line'|'model'|'eqp'} ScopeType
+ */
+
+/** enum처럼 사용할 상수 */
+const Scope = Object.freeze({
+  ALL:   'all',
+  LINE:  'line',
+  MODEL: 'model',
+  EQP:   'eqp'
+});
+const ALLOWED = Object.values(Scope);
+
+export default {
+  name: 'MyComponent',
+
+  props: {
+    /**
+     * 콤마 구분 문자열. 예) "line, eqp" / "all"
+     * @type {string}
+     */
+    selectScope: {
+      type: String,
+      default: '',
+      validator(value) {
+        if (!value) return true;
+        return value
+          .split(',')
+          .map(v => v.trim().toLowerCase())
+          .every(v => ALLOWED.includes(v));
+      }
+    }
+  },
+
+  data() {
+    return {
+      allSelected: {
+        line: false,
+        model: false,
+        eqp: false
+      }
+    };
+  },
+
+  created() {
+    const list = (this.$options.propsData.selectScope || '')
+      .split(',')
+      .map(v => v.trim().toLowerCase())
+      .filter(v => ALLOWED.includes(v));
+
+    const isAll = list.includes(Scope.ALL);
+
+    this.allSelected = {
+      line: isAll || list.includes(Scope.LINE),
+      model: isAll || list.includes(Scope.MODEL),
+      eqp: isAll || list.includes(Scope.EQP)
+    };
+  }
+};
+</script>
