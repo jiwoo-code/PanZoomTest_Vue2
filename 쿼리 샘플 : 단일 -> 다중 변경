@@ -1,0 +1,74 @@
+<select id="selectReportMulti" resultMap="reportMap">
+  SELECT *
+  FROM (
+    <foreach collection="schemas" item="sch" separator=" UNION ALL ">
+      SELECT
+        #{eqpId} AS eqp_id,
+        -- … 기존 컬럼들 …
+      FROM (
+        WITH dose_shot AS (
+          SELECT
+            -- …
+          FROM (
+            SELECT
+              -- …
+            FROM ${sch}.some_table st
+            WHERE st.eqp_id IN
+              <foreach collection="eqpIds" item="id" open="(" separator="," close=")">
+                #{id}
+              </foreach>
+            GROUP BY
+              -- …
+          ) t
+        ),
+        slip AS (
+          SELECT
+            -- …
+          FROM ${sch}.slip_table
+          WHERE eqp_id IN
+            <foreach collection="eqpIds" item="id" open="(" separator="," close=")">
+              #{id}
+            </foreach>
+        ),
+        eff_rate AS (
+          SELECT
+            -- …
+          FROM (
+            SELECT
+              -- …
+            FROM ${sch}.eff_table
+            WHERE eqp_id IN
+              <foreach collection="eqpIds" item="id" open="(" separator="," close=")">
+                #{id}
+              </foreach>
+          ) t
+        ),
+        reticle AS (
+          SELECT
+            -- …
+          FROM (
+            SELECT
+              -- …
+            FROM ${sch}.std_table std
+            WHERE eqp_id IN
+              <foreach collection="eqpIds" item="id" open="(" separator="," close=")">
+                #{id}
+              </foreach>
+            AND seq = 1
+          ) t
+        )
+        SELECT
+          -- 최종 컬럼들
+          #{eqpId} AS eqp_id,
+          er.col_a,
+          rt.col_b,
+          ds.col_c,
+          sp.col_d
+        FROM eff_rate er
+        JOIN reticle rt ON 1=1
+        JOIN dose_shot ds ON 1=1
+        JOIN slip sp ON 1=1
+      ) sub
+    </foreach>
+  ) all_schemas
+</select>
