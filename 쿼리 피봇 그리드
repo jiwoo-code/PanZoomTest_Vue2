@@ -1,0 +1,174 @@
+더미 데이터 생성 함수 (조건 반영)
+코드 복사
+Js
+// utils/dummySqlResult.js
+
+/**
+ * 설비별로 a~g 값을 생성하는 더미 함수
+ * @param {string[]} eqps - 설비명 목록 (['eqp1','eqp2',...])
+ * @returns {Array} SQL 결과와 유사한 배열
+ *
+ * 예:
+ * [
+ *   { eqp: 'eqp1', a: 12.34, b: 56.7, c: 78.9, d: 45.12, e: 67.8, f: 1234, g: 2999 },
+ *   { eqp: 'eqp2', a: 10.1,  b: 20.45, ... },
+ * ]
+ */
+export function generateDummySqlResult(eqps) {
+  // a~e는 소수점 1~2자리, f/g는 정수
+  const getFloatValue = () => {
+    const base = Math.floor(Math.random() * 90) + 10; // 10~99 (십의 자리 이상)
+    const decimals = Math.random() < 0.5
+      ? +(Math.random().toFixed(1)) // 소수점 1자리
+      : +(Math.random().toFixed(2)); // 소수점 2자리
+    return +(base + decimals).toFixed(decimals === 0 ? 1 : (decimals.toString().length - 2));
+  };
+
+  const getIntValue = () => Math.floor(Math.random() * 3000); // 0~2999
+
+  return eqps.map(eqp => ({
+    eqp,
+    a: getFloatValue(),
+    b: getFloatValue(),
+    c: getFloatValue(),
+    d: getFloatValue(),
+    e: getFloatValue(),
+    f: getIntValue(),
+    g: getIntValue(),
+  }));
+}
+🔍 결과 예시
+코드 복사
+Js
+generateDummySqlResult(['eqp1','eqp2']);
+리턴값 예:
+코드 복사
+Json
+[
+  {
+    "eqp": "eqp1",
+    "a": 45.67,
+    "b": 23.4,
+    "c": 88.12,
+    "d": 12.3,
+    "e": 67.45,
+    "f": 1200,
+    "g": 2999
+  },
+  {
+    "eqp": "eqp2",
+    "a": 34.5,
+    "b": 56.78,
+    "c": 91.2,
+    "d": 43.67,
+    "e": 78.1,
+    "f": 234,
+    "g": 1567
+  }
+]
+
+
+
+-------------------------------------------------
+
+Vue2 + ag-Grid 표시 구조
+SQL 결과는 "행 = 설비", "컬럼 = 항목(ag)"인데, 지우님이 원하시는 건
+**행 = 항목(ag), 동적 컬럼 = 설비 목록**이므로 피벗 변환이 필요합니다.
+코드 복사
+Js
+// utils/pivot.js
+
+/**
+ * SQL 결과 (행=설비) → 그리드 행 (행=항목)
+ *
+ * @param {Array} sqlRows - SQL 결과 [{eqp:'eqp1', a:..., b:..., ...}, ...]
+ * @param {string[]} eqps - 설비 목록
+ * @returns {Array} 그리드에 넣을 행 [{item:'a', eqp1:값, eqp2:값,...}, ...]
+ */
+export function pivotSqlResult(sqlRows, eqps) {
+  const items = ['a','b','c','d','e','f','g'];
+  return items.map(item => {
+    const row = { item };
+    for (const eqp of eqps) {
+      const found = sqlRows.find(r => r.eqp === eqp);
+      row[eqp] = found ? found[item] : null;
+    }
+    return row;
+  });
+}
+3. Vue2 컴포넌트 예시
+코드 복사
+Vue
+<template>
+  <div class="ag-theme-alpine" style="width:100%;height:500px;">
+    <ag-grid-vue
+      :columnDefs="columnDefs"
+      :rowData="rowData"
+      :defaultColDef="defaultColDef"
+      @grid-ready="onGridReady"
+    />
+  </div>
+</template>
+
+<script>
+import { AgGridVue } from 'ag-grid-vue';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
+
+import { generateDummySqlResult } from '@/utils/dummySqlResult';
+import { pivotSqlResult } from '@/utils/pivot';
+
+export default {
+  name: 'EqpDynamicGrid',
+  components: { AgGridVue },
+
+  props: {
+    eqps: {
+      type: Array,
+      required: true,
+    },
+    sqlRows: {
+      type: Array,
+      default: () => null,
+    },
+  },
+
+  data() {
+    return {
+      columnDefs: [],
+      rowData: [],
+      defaultColDef: {
+        resizable: true,
+        sortable: true,
+      },
+    };
+  },
+
+  mounted() {
+    this.rebuildGrid();
+  },
+
+  methods: {
+    onGridReady(params) {
+      this.gridApi = params.api;
+    },
+
+    rebuildGrid() {
+      const raw = this.sqlRows && this.sqlRows.length
+        ? this.sqlRows
+        : generateDummySqlResult(this.eqps);
+
+      const rows = pivotSqlResult(raw, this.eqps);
+
+      // 컬럼 정의: 고정 + 동적
+      const fixed = [{ headerName: '항목', field: 'item', pinned: 'left' }];
+      const dynamic = this.eqps.map(e => ({ headerName: e, field: e }));
+      this.columnDefs = [...fixed, ...dynamic];
+      this.rowData = rows;
+    },
+  },
+};
+</script>
+
+
+
