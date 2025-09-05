@@ -1,0 +1,16 @@
+function getYAxisMax(value) {
+  // 10의 거듭제곱 찾기
+  const pow10 = Math.pow(10, Math.floor(Math.log10(value)));
+  // 쓸만한 step 후보
+  const steps = [1, 2, 2.5, 3, 5, 10].map(f => f * pow10);
+
+  for (const step of steps) {
+    const max = Math.ceil(value / step) * step;
+    const ticks = max / step;
+    if (ticks >= 5 && ticks <= 9) {
+      return max;
+    }
+  }
+  // 못 찾으면 10배수로 올림
+  return Math.ceil(value / (10 * pow10)) * (10 * pow10);
+}
