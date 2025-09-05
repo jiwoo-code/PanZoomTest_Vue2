@@ -1,16 +1,35 @@
 function getYAxisMax(value) {
-  // 10의 거듭제곱 찾기
-  const pow10 = Math.pow(10, Math.floor(Math.log10(value)));
-  // 쓸만한 step 후보
-  const steps = [1, 2, 2.5, 3, 5, 10].map(f => f * pow10);
+  if (value <= 0) return 0;
 
-  for (const step of steps) {
-    const max = Math.ceil(value / step) * step;
-    const ticks = max / step;
+  const pow10 = Math.pow(10, Math.floor(Math.log10(value)));
+  // 0.1 ~ 10까지 다양한 배율 (5~9 구간 맞추기 위함)
+  const factors = [0.1, 0.2, 0.25, 0.3, 0.5, 1, 2, 2.5, 3, 5, 10];
+
+  let bestAxisMax = null;
+  let bestStep = null;
+
+  for (const f of factors) {
+    const step = f * pow10;
+    if (step <= 0) continue;
+
+    const axisMax = Math.ceil(value / step) * step;
+    const ticks = axisMax / step;
+
+    // 조건: 5~9 구간
     if (ticks >= 5 && ticks <= 9) {
-      return max;
+      // 항상 더 "거친" step(큰 step)을 우선 선택
+      if (bestAxisMax === null || step > bestStep ||
+         (step === bestStep && axisMax < bestAxisMax)) {
+        bestAxisMax = axisMax;
+        bestStep = step;
+      }
     }
   }
-  // 못 찾으면 10배수로 올림
-  return Math.ceil(value / (10 * pow10)) * (10 * pow10);
+
+  // 후보가 없으면 안전망 (10배수로 올림)
+  if (bestAxisMax == null) {
+    const step = 10 * pow10;
+    return Math.ceil(value / step) * step;
+  }
+  return bestAxisMax;
 }
