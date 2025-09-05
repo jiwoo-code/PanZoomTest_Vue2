@@ -3,7 +3,7 @@ function getYAxisMax(value) {
 
   const pow10 = Math.pow(10, Math.floor(Math.log10(value)));
   // 0.1 ~ 10까지 다양한 배율 (5~9 구간 맞추기 위함)
-  const factors = [0.1, 0.2, 0.25, 0.3, 0.5, 1, 2, 2.5, 3, 5, 10];
+  const factors = [0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10];
 
   let bestAxisMax = null;
   let bestStep = null;
