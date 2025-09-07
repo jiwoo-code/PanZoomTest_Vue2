@@ -33,3 +33,51 @@ function getYAxisMax(value) {
   }
   return bestAxisMax;
 }
+
+
+ㅡㅡㅡㅡㅡㅡ
+
+동일 결과 다른 코드
+
+
+
+// raw 이상이 되는 "다음 예쁜 step": 베이스 1,2,3,5 × 10^k
+function nextNiceStep(raw) {
+  if (!(raw > 0)) return 1;
+  const k = Math.floor(Math.log10(raw));
+  const p = Math.pow(10, k);
+  const base = raw / p;
+  if (base <= 1) return 1 * p;
+  if (base <= 2) return 2 * p;
+  if (base <= 3) return 3 * p;
+  if (base <= 5) return 5 * p;
+  return 10 * p;
+}
+
+// 항상 "coarse" 규칙: 5~9 구간 중 더 큰 step을 우선
+function getYAxisMax(value) {
+  if (value <= 0) return 0;
+
+  let bestMax = null;
+  let bestStep = 0;
+
+  for (let seg = 5; seg <= 9; seg++) {
+    const step = nextNiceStep(value / seg);
+    const axisMax = Math.ceil(value / step) * step;
+    const ticks = axisMax / step;
+
+    if (ticks >= 5 && ticks <= 9) {
+      if (step > bestStep || (step === bestStep && (bestMax === null || axisMax < bestMax))) {
+        bestStep = step;
+        bestMax = axisMax;
+      }
+    }
+  }
+
+  // 안전망: 혹시라도 후보가 없으면, 5구간 기준으로 한 번 더 올림
+  if (bestMax == null) {
+    const step = nextNiceStep(value / 5);
+    return Math.ceil(value / step) * step;
+  }
+  return bestMax;
+}
