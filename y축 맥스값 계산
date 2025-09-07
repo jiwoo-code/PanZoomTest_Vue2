@@ -81,3 +81,43 @@ function getYAxisMax(value) {
   }
   return bestMax;
 }
+
+
+
+ㅡㅡㅡㅡㅡㅡ
+최종 간단 버전
+
+
+// y축 최대값 계산 (항상 5~9 ticks 중 "구간 수가 적은" 해를 우선)
+// 전제: value는 정수 ≥ 1, 소수 없음. (≤0이면 0 반환)
+function getYAxisMax(value) {
+  if (value <= 0) return 0;
+
+  const pow10 = Math.pow(10, Math.floor(Math.log10(value)));
+
+  // {1,2,3,5} × 10^(-1,0,1) → [0.1,0.2,0.3,0.5, 1,2,3,5, 10]
+  const bases = [1, 2, 3, 5];
+  const factors = [];
+  for (const exp of [-1, 0, 1]) {
+    const p = Math.pow(10, exp);
+    for (const b of bases) factors.push(b * p);
+  }
+
+  let bestAxisMax = null;
+  let bestStep = 0;
+
+  for (const f of factors) {
+    const step = f * pow10;
+    const axisMax = Math.ceil(value / step) * step;
+    const ticks = axisMax / step; // 정수
+
+    if (ticks >= 5 && ticks <= 9) {
+      // "큰 step(=더 적은 구간)" 우선, 동률이면 axisMax가 작은 쪽
+      if (step > bestStep || (step === bestStep && (bestAxisMax === null || axisMax < bestAxisMax))) {
+        bestStep = step;
+        bestAxisMax = axisMax;
+      }
+    }
+  }
+  return bestAxisMax;
+}
