@@ -115,3 +115,37 @@ function getYAxisMax(value) {
   }
   return bestAxisMax;
 }
+
+
+
+ㅡㅡㅡㅡㅡㅡ
+최대값이 작은 것이 우선
+
+function getYAxisMax(value) {
+  if (value <= 0) return 0;
+
+  // 소수점 올림 처리
+  value = Math.ceil(value);
+
+  const pow10 = Math.pow(10, Math.floor(Math.log10(value)));
+  const factors = [0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10];
+
+  let bestAxisMax = null;
+  let bestStep = null;
+
+  for (const f of factors) {
+    const step = f * pow10;
+    const axisMax = Math.ceil(value / step) * step;
+    const ticks = axisMax / step;
+
+    if (ticks >= 5 && ticks <= 9) {
+      // 조건 충족 시: axisMax가 더 작은 쪽을 우선 선택
+      if (bestAxisMax === null || axisMax < bestAxisMax ||
+         (axisMax === bestAxisMax && step > bestStep)) {
+        bestAxisMax = axisMax;
+        bestStep = step;
+      }
+    }
+  }
+  return bestAxisMax;
+}
