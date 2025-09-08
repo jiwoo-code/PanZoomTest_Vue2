@@ -152,31 +152,60 @@ function getYAxisMax(value) {
 
 
 ㅡㅡㅡㅡㅡ
-이차트 비슷하게
 
-// 1–2–5 계열로 rough 이상인 가장 작은 '예쁜 간격'을 선택
-function niceStep(rough) {
+// 데이터 값으로부터 적절한 축 눈금 간격(interval) 계산
+function calcAxisInterval(rough) {
   if (rough <= 0) return 1;
-  const k = Math.floor(Math.log10(rough));
-  const p = Math.pow(10, k);
-  const x = rough / p;
-  const base = x <= 1 ? 1 : x <= 2 ? 2 : x <= 5 ? 5 : 10;
-  return base * p;
+
+  const exponent = Math.floor(Math.log10(rough)); // 자리수 지수
+  const scale = Math.pow(10, exponent);           // 자리수 기준값
+  const normalized = rough / scale;               // 1 <= normalized < 10
+
+  const base =
+    normalized <= 1.5 ? 1 :
+    normalized <= 2.5 ? 2 :
+    normalized <= 4.0 ? 3 :
+    normalized <= 7.5 ? 5 : 10;
+
+  return base * scale;
 }
 
-// ECharts 유사: min=0 가정, splitNumber=5(변경 가능)
-function autoYAxisMax(dataMax, splitNumber = 5, dataMin = 0) {
-  if (dataMax <= 0) return 0;
-  // 소수 입력은 그대로 허용(원본 ECharts와 일치). 필요하면 Math.ceil(dataMax) 적용 가능
-  const span = dataMax - dataMin;
-  const step = niceStep(span / splitNumber);
-  const niceMax = Math.ceil(dataMax / step) * step;
-  // 필요 시 niceMin도 계산: const niceMin = Math.floor(dataMin / step) * step;
-  return niceMax;
+// 주어진 최대값 기준으로 y축 최대값 계산 (5~9 ticks)
+function getYAxisMax(value, splitNumber = 5) {
+  if (value <= 0) return 0;
+  if (!Number.isInteger(value)) value = Math.ceil(value);
+
+  const step = calcAxisInterval(value / splitNumber);
+  return Math.ceil(value / step) * step;
 }
 
-// 예시
-console.log(autoYAxisMax(124.91)); // 140
-console.log(autoYAxisMax(44.55));  // 50
-console.log(autoYAxisMax(125));    // 150
-console.log(autoYAxisMax(672));    // 700
+ㅡㅡ
+
+위 코드에서 min 받는 코드
+
+// 데이터 값으로부터 적절한 축 눈금 간격(interval) 계산
+function calcAxisInterval(rough) {
+  if (rough <= 0) return 1;
+
+  const exponent = Math.floor(Math.log10(rough)); // 자리수 지수
+  const scale = Math.pow(10, exponent);           // 자리수 기준값
+  const normalized = rough / scale;               // 1 <= normalized < 10
+
+  const base =
+    normalized <= 1.5 ? 1 :
+    normalized <= 2.5 ? 2 :
+    normalized <= 4.0 ? 3 :
+    normalized <= 7.5 ? 5 : 10;
+
+  return base * scale;
+}
+
+// y축 최대값 계산 (min을 외부에서 직접 받음, nice-min 계산 없음)
+function getYAxisMax(value, min = 0, splitNumber = 5) {
+  if (value <= min) return min;
+  if (!Number.isInteger(value)) value = Math.ceil(value);
+
+  const span = value - min;
+  const step = calcAxisInterval(span / splitNumber);
+  return Math.ceil(value / step) * step;
+}
