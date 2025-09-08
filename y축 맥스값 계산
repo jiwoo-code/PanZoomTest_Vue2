@@ -214,7 +214,9 @@ function getYAxisMax(value, min = 0, splitNumber = 5) {
 ㅡㅡㅡ
 노말라이즈 코드 변경
 
+
 const thresholds = [1.5, 2.5, 4, 7.5];
 const bases      = [1, 2, 3, 5];
 const idx = thresholds.findIndex(t => normalized <= t);
+// normalized 값이 1.5 이하 → 1, 2.5 이하 → 2, 4 이하 → 3, 7.5 이하 → 5, 그 외는 10
 const base = idx === -1 ? 10 : bases[idx];
