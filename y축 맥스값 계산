@@ -209,3 +209,12 @@ function getYAxisMax(value, min = 0, splitNumber = 5) {
   const step = calcAxisInterval(span / splitNumber);
   return Math.ceil(value / step) * step;
 }
+
+
+ㅡㅡㅡ
+노말라이즈 코드 변경
+
+const thresholds = [1.5, 2.5, 4, 7.5];
+const bases      = [1, 2, 3, 5];
+const idx = thresholds.findIndex(t => normalized <= t);
+const base = idx === -1 ? 10 : bases[idx];
