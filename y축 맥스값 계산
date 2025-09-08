@@ -95,13 +95,7 @@ function getYAxisMax(value) {
 
   const pow10 = Math.pow(10, Math.floor(Math.log10(value)));
 
-  // {1,2,3,5} × 10^(-1,0,1) → [0.1,0.2,0.3,0.5, 1,2,3,5, 10]
-  const bases = [1, 2, 3, 5];
-  const factors = [];
-  for (const exp of [-1, 0, 1]) {
-    const p = Math.pow(10, exp);
-    for (const b of bases) factors.push(b * p);
-  }
+  const factors = [0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5,  10];
 
   let bestAxisMax = null;
   let bestStep = 0;
