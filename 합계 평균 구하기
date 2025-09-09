@@ -29,3 +29,34 @@ function addRowSumAvgByEqps(rows, eqps, { avgMode = 'valid' } = {}) {
     return { ...row, sum, avg };
   });
 }
+
+
+
+
+ㅡㅡㅡㅡㅡ
+
+
+function addRowSumAvgByEqps(rows, eqps, avgMode = 'valid') {
+  const keys = Array.isArray(eqps) ? eqps.filter(Boolean) : [];
+  if (!keys.length) return rows.map(r => ({ ...r, sum: null, avg: null }));
+
+  return rows.map(row => {
+    let sum = 0;
+    let valid = 0;
+
+    for (const k of keys) {
+      const v = Number(row[k]);
+      if (Number.isFinite(v)) {
+        sum += v;
+        valid++;
+      }
+    }
+
+    // avgMode === 'valid' → 숫자로 변환 가능한 값 개수만 분모
+    // avgMode === 'all'   → eqps 전체 길이로 분모
+    const denom = avgMode === 'valid' ? valid : keys.length;
+    const avg = denom > 0 ? sum / denom : null;
+
+    return { ...row, sum, avg };
+  });
+}
