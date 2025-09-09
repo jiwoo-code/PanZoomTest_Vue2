@@ -1,0 +1,31 @@
+/**
+ * 피벗된 rowData의 각 행에 sum/avg를 추가합니다.
+ * @param {Array<Object>} rows   피벗 완료된 행 배열
+ * @param {Array<string>} eqps   합/평균 계산에 포함할 컬럼명 배열 (예: ['EQP-001','EQP-002',...])
+ * @param {Object} opt
+ * @param {'valid'|'all'} [opt.avgMode='valid']  'valid' = 숫자인 값 개수로 나눔, 'all' = eqps 전체 길이로 나눔
+ * @returns {Array<Object>}
+ */
+function addRowSumAvgByEqps(rows, eqps, { avgMode = 'valid' } = {}) {
+  const keys = Array.isArray(eqps) ? eqps.filter(Boolean) : [];
+  if (!keys.length) return rows.map(r => ({ ...r, sum: null, avg: null }));
+
+  return rows.map(row => {
+    let sum = 0;
+    let valid = 0;
+
+    for (const k of keys) {
+      const raw = row[k];
+      const v = Number(raw);
+      if (Number.isFinite(v)) {
+        sum += v;
+        valid++;
+      }
+    }
+
+    const denom = avgMode === 'all' ? keys.length : valid;
+    const avg = denom > 0 ? sum / denom : null;
+
+    return { ...row, sum, avg };
+  });
+}
