@@ -1,0 +1,70 @@
+<template>
+  <div class="ag-theme-alpine" style="height: 520px">
+    <ag-grid-vue
+      :columnDefs="columnDefs"
+      :rowData="rowData"
+      :defaultColDef="{ resizable: true }"
+    />
+  </div>
+</template>
+
+<script>
+// 설치: npm i ag-grid-community ag-grid-vue@^2
+import { AgGridVue } from 'ag-grid-vue'
+import 'ag-grid-community/styles/ag-grid.css'
+import 'ag-grid-community/styles/ag-theme-alpine.css'
+
+export default {
+  name: 'EqpGridSimple',
+  components: { AgGridVue },
+  data() {
+    return {
+      // 헤더 원본 데이터
+      items: [
+        { line: 'L1', model: 'M-A', eqpId: 'EQP-001' },
+        { line: 'L1', model: 'M-A', eqpId: 'EQP-002' },
+        { line: 'L1', model: 'M-B', eqpId: 'EQP-003' },
+        { line: 'L2', model: 'M-C', eqpId: 'EQP-004' },
+      ],
+      // 리프 컬럼(field)이 eqpId 키와 매칭되도록만 맞춰주면 됩니다.
+      rowData: [
+        { name: '항목1', unit: 'EA', 'EQP-001': 123, 'EQP-002': 456, 'EQP-003': 789, 'EQP-004': 321 },
+        { name: '항목2', unit: 'EA', 'EQP-001': 111, 'EQP-002': 222, 'EQP-003': 333, 'EQP-004': 444 },
+      ],
+    }
+  },
+  computed: {
+    columnDefs() {
+      const asc = (a, b) => (a > b) - (a < b)
+      const lines = [...new Set(this.items.map(i => i.line))].sort(asc)
+
+      return lines.map(line => {
+        const lineItems = this.items.filter(i => i.line === line)
+        const models = [...new Set(lineItems.map(i => i.model))].sort(asc)
+
+        return {
+          headerName: line,
+          marryChildren: true,
+          children: models.map(model => {
+            const eqps = [...new Set(
+              lineItems.filter(i => i.model === model).map(i => i.eqpId)
+            )].sort(asc)
+
+            return {
+              headerName: model,
+              marryChildren: true,
+              children: eqps.map(eqpId => ({
+                headerName: eqpId,
+                field: eqpId,
+                filter: true,
+                sortable: true,
+                minWidth: 110,
+              })),
+            }
+          }),
+        }
+      })
+    },
+  },
+}
+</script>
