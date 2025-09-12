@@ -221,67 +221,81 @@ Xml
     <!-- 나머지 컬럼 매핑 -->
   </resultMap>
 
-  <select id="selectReportGrouped" resultMap="reportMap">
-    SELECT * FROM (
-      <foreach collection="groups" index="schema" item="ids" separator=" UNION ALL ">
-        <!-- 스키마별 CTE: ids를 한 번 만들어 모든 서브쿼리에서 join -->
-        WITH ids(eqp_id) AS (
-          SELECT UNNEST(ARRAY[
-            <foreach collection="ids" item="id" separator=",">
-              #{id}
-            </foreach>
-          ])
-        ),
-        dose_shot AS (
-          SELECT
-            st.eqp_id
-            <!-- , ... -->
-          FROM some_table st
-          JOIN ids ON ids.eqp_id = st.eqp_id
-          <!-- 여기 날짜 조건 추가: AND st.occurred_at BETWEEN #{startDate} AND #{endDate} -->
-          GROUP BY st.eqp_id
-          <!-- , ... -->
-        ),
-        slip AS (
-          SELECT
-            sp.eqp_id
-            <!-- , ... -->
-          FROM slip_table sp
-          JOIN ids ON ids.eqp_id = sp.eqp_id
-          <!-- AND sp.ts BETWEEN #{startDate} AND #{endDate} -->
-        ),
-        eff_rate AS (
-          SELECT
-            t.eqp_id
-            <!-- , ... -->
-          FROM (
-            SELECT
-              x.eqp_id
-              <!-- , ... -->
-            FROM ${schema}.table x            <!-- 스키마만 동적 식별자 -->
-            JOIN ids ON ids.eqp_id = x.eqp_id
-            <!-- AND x.dt BETWEEN #{startDate} AND #{endDate} -->
-          ) t
-        ),
-        reticle AS (
-          SELECT
-            std.eqp_id
-            <!-- , ... -->
-          FROM std_table std
-          JOIN ids ON ids.eqp_id = std.eqp_id
-          WHERE std.seq = 1
-          <!-- AND std.reg_dt BETWEEN #{startDate} AND #{endDate} -->
-        )
+<select id="selectReportGrouped" resultMap="reportMap">
+  SELECT * FROM (
+    <foreach collection="groups" index="schema" item="ids" separator=" UNION ALL ">
+      WITH
+      ids(eqp_id) AS (
+        SELECT UNNEST(ARRAY[
+          <foreach collection="ids" item="id" separator=",">
+            #{id}
+          </foreach>
+        ])
+      ),
+
+      -- dose_shot: 기존대로 ids 조인
+      dose_shot AS (
         SELECT
-          er.eqp_id
-          <!-- , er.col_a, rt.col_b, ds.col_c, sp.col_d ... -->
-        FROM eff_rate   er
-        JOIN reticle    rt ON rt.eqp_id = er.eqp_id
-        JOIN dose_shot  ds ON ds.eqp_id = er.eqp_id
-        JOIN slip       sp ON sp.eqp_id = er.eqp_id
-      </foreach>
-    ) u
-  </select>
+          st.eqp_id
+          -- , ...
+        FROM some_table st
+        JOIN ids ON ids.eqp_id = st.eqp_id
+        -- AND st.occurred_at BETWEEN #{startDate} AND #{endDate}
+        GROUP BY st.eqp_id
+        -- , ...
+      ),
+
+      -- slip: 기존대로 ids 조인
+      slip AS (
+        SELECT
+          sp.eqp_id
+          -- , ...
+        FROM slip_table sp
+        JOIN ids ON ids.eqp_id = sp.eqp_id
+        -- AND sp.ts BETWEEN #{startDate} AND #{endDate}
+      ),
+
+      -- 🔑 eff_rate: ids -> eqp_info 매핑(eqp_id_2) 집합을 만들어 x.eqp_id와 JOIN
+      eqp_map AS (
+        SELECT DISTINCT ei.eqp_id_2 AS eqp_id
+        FROM eqp_info ei
+        JOIN ids ON ei.eqp_id = ids.eqp_id
+      ),
+      eff_rate AS (
+        SELECT
+          t.eqp_id
+          -- , ...
+        FROM (
+          SELECT
+            x.eqp_id
+            -- , ...
+          FROM ${schema}.table x             <!-- 스키마만 동적 식별자 -->
+          JOIN eqp_map m ON m.eqp_id = x.eqp_id
+          -- AND x.dt BETWEEN #{startDate} AND #{endDate}
+        ) t
+      ),
+
+      -- reticle: 기존대로 ids 조인
+      reticle AS (
+        SELECT
+          std.eqp_id
+          -- , ...
+        FROM std_table std
+        JOIN ids ON ids.eqp_id = std.eqp_id
+        WHERE std.seq = 1
+        -- AND std.reg_dt BETWEEN #{startDate} AND #{endDate}
+      )
+
+      SELECT
+        er.eqp_id
+        -- , er.col_a, rt.col_b, ds.col_c, sp.col_d ...
+      FROM eff_rate   er
+      JOIN reticle    rt ON rt.eqp_id = er.eqp_id
+      JOIN dose_shot  ds ON ds.eqp_id = er.eqp_id
+      JOIN slip       sp ON sp.eqp_id = er.eqp_id
+    </foreach>
+  ) u
+</select>
 </mapper>
 7) 결과 VO (예시)
 코드 복사
