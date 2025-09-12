@@ -275,15 +275,27 @@ Xml
         ) t
       ),
 
-      -- reticle: 기존대로 ids 조인
       reticle AS (
         SELECT
-          std.eqp_id
-          -- , ...
-        FROM std_table std
-        JOIN ids ON ids.eqp_id = std.eqp_id
-        WHERE std.seq = 1
-        -- AND std.reg_dt BETWEEN #{startDate} AND #{endDate}
+          t.eqp_id,
+          AVG(t.metric) * 100 AS rate
+        FROM (
+          SELECT
+            std.eqp_id,
+            CASE
+              WHEN LAG(std.flag) OVER (PARTITION BY std.eqp_id ORDER BY std.ts) IS NULL
+              THEN 1 ELSE 0
+            END AS metric
+          FROM std_table std
+          JOIN ids ON ids.eqp_id = std.eqp_id
+          <include refid="where.range">
+            <property name="dateCol" value="std.ts"/>
+          </include>
+          <include refid="where.seqOne">
+            <property name="seqCol" value="std.seq"/>
+          </include>
+        ) t
+        GROUP BY t.eqp_id
       )
 
       SELECT
