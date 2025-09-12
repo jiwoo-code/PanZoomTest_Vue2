@@ -1,0 +1,297 @@
+1) Vue2 (요청 전송)
+코드 복사
+Html
+<!-- 예: Vue2 컴포넌트 -->
+<template>
+  <div>
+    <!-- 예시 버튼 -->
+    <button @click="fetchReport">조회</button>
+  </div>
+</template>
+
+<script>
+import axios from 'axios';
+
+export default {
+  name: 'ReportSearch',
+  data() {
+    return {
+      schemaList: ['fab_a', 'fab_b', 'fab_a'], // 예시
+      eqpList:    ['EQP001', 'EQP777', 'EQP002'], // 예시 (같은 길이)
+      startDate:  '2025-08-01 00:00:00',
+      endDate:    '2025-08-31 23:59:59',
+    };
+  },
+  methods: {
+    async fetchReport() {
+      const payload = {
+        schemas: this.schemaList,
+        eqpIds:  this.eqpList,
+        startDate: this.startDate,
+        endDate:   this.endDate,
+      };
+      try {
+        const res = await axios.post('/api/report/search', payload);
+        console.log('rows:', res.data);
+      } catch (err) {
+        console.error(err.response ? err.response.data : err);
+      }
+    }
+  }
+};
+</script>
+2) 요청 DTO
+코드 복사
+Java
+// src/main/java/your/pkg/dto/ReportSearchRequest.java
+package your.pkg.dto;
+
+import java.util.List;
+import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
+
+public class ReportSearchRequest {
+    @NotNull @NotEmpty
+    private List<String> schemas;   // 스키마 목록
+
+    @NotNull @NotEmpty
+    private List<String> eqpIds;    // eqp 목록 (schemas와 길이 동일해야 함)
+
+    @NotNull
+    private String startDate;       // 예: "yyyy-MM-dd HH:mm:ss"
+
+    @NotNull
+    private String endDate;
+
+    // getters / setters
+    public List<String> getSchemas() { return schemas; }
+    public void setSchemas(List<String> schemas) { this.schemas = schemas; }
+
+    public List<String> getEqpIds() { return eqpIds; }
+    public void setEqpIds(List<String> eqpIds) { this.eqpIds = eqpIds; }
+
+    public String getStartDate() { return startDate; }
+    public void setStartDate(String startDate) { this.startDate = startDate; }
+
+    public String getEndDate() { return endDate; }
+    public void setEndDate(String endDate) { this.endDate = endDate; }
+}
+3) 컨트롤러
+코드 복사
+Java
+// src/main/java/your/pkg/controller/ReportController.java
+package your.pkg.controller;
+
+import your.pkg.dto.ReportSearchRequest;
+import your.pkg.service.ReportService;
+import your.pkg.vo.ReportVo;
+
+import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
+
+import javax.validation.Valid;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/report")
+@Validated
+public class ReportController {
+
+    private final ReportService reportService;
+    public ReportController(ReportService reportService) {
+        this.reportService = reportService;
+    }
+
+    @PostMapping("/search")
+    public ResponseEntity<List<ReportVo>> search(@Valid @RequestBody ReportSearchRequest req) {
+        List<ReportVo> rows = reportService.searchGrouped(req);
+        return ResponseEntity.ok(rows);
+    }
+}
+4) 서비스 (스키마 화이트리스트 검증 + (schema→ids) 그룹핑)
+코드 복사
+Java
+// src/main/java/your/pkg/service/ReportService.java
+package your.pkg.service;
+
+import your.pkg.dto.ReportSearchRequest;
+import your.pkg.vo.ReportVo;
+
+import java.util.List;
+
+public interface ReportService {
+    List<ReportVo> searchGrouped(ReportSearchRequest req);
+}
+코드 복사
+Java
+// src/main/java/your/pkg/service/ReportServiceImpl.java
+package your.pkg.service;
+
+import your.pkg.dto.ReportSearchRequest;
+import your.pkg.mapper.ReportMapper;
+import your.pkg.vo.ReportVo;
+
+import org.springframework.stereotype.Service;
+
+import java.util.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@Service
+public class ReportServiceImpl implements ReportService {
+
+    private final ReportMapper reportMapper;
+
+    public ReportServiceImpl(ReportMapper reportMapper) {
+        this.reportMapper = reportMapper;
+    }
+
+    // 스키마명 화이트리스트 (영문/숫자/언더스코어, 숫자 시작 금지)
+    private static final Pattern SCHEMA = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
+
+    @Override
+    public List<ReportVo> searchGrouped(ReportSearchRequest req) {
+        List<String> schemas = req.getSchemas();
+        List<String> eqpIds  = req.getEqpIds();
+
+        if (schemas.size() != eqpIds.size()) {
+            throw new IllegalArgumentException("schemas와 eqpIds 길이가 다릅니다.");
+        }
+
+        // 스키마 검증
+        for (String s : schemas) {
+            if (s == null || !SCHEMA.matcher(s).matches()) {
+                throw new IllegalArgumentException("잘못된 스키마명: " + s);
+            }
+        }
+
+        // (schema → List<eqpId>) 그룹핑
+        Map<String, List<String>> groups = new LinkedHashMap<>();
+        for (int i = 0; i < schemas.size(); i++) {
+            String sch = schemas.get(i);
+            String id  = eqpIds.get(i);
+            groups.computeIfAbsent(sch, k -> new ArrayList<>()).add(id);
+        }
+
+        // 필요시 eqpId 중복 제거
+        groups.replaceAll((k, v) -> v.stream().distinct().collect(Collectors.toList()));
+
+        // 날짜는 매퍼로 그대로 전달 (쿼리 조건은 매퍼에서 구성)
+        return reportMapper.selectReportGrouped(groups, req.getStartDate(), req.getEndDate());
+    }
+}
+5) 매퍼 인터페이스
+코드 복사
+Java
+// src/main/java/your/pkg/mapper/ReportMapper.java
+package your.pkg.mapper;
+
+import your.pkg.vo.ReportVo;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+import java.util.Map;
+
+public interface ReportMapper {
+
+    // groups: Map<schema, List<eqpId>>
+    List<ReportVo> selectReportGrouped(
+        @Param("groups")   Map<String, List<String>> groups,
+        @Param("startDate") String startDate,
+        @Param("endDate")   String endDate
+    );
+}
+6) 매퍼 XML (스키마별 블록 × ids CTE join)
+날짜 조건은 지우님이 직접 넣으시기로 해서 주석 위치만 표시해 둡니다.
+${schema}는 식별자 치환이므로 반드시 서비스에서 정규식 검증 후 넘어옵니다.
+코드 복사
+Xml
+<!-- src/main/resources/your/pkg/mapper/ReportMapper.xml -->
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="your.pkg.mapper.ReportMapper">
+
+  <!-- resultMap은 실제 컬럼에 맞게 작성 -->
+  <resultMap id="reportMap" type="your.pkg.vo.ReportVo">
+    <result property="eqpId" column="eqp_id"/>
+    <!-- 나머지 컬럼 매핑 -->
+  </resultMap>
+
+  <select id="selectReportGrouped" resultMap="reportMap">
+    SELECT * FROM (
+      <foreach collection="groups" index="schema" item="ids" separator=" UNION ALL ">
+        <!-- 스키마별 CTE: ids를 한 번 만들어 모든 서브쿼리에서 join -->
+        WITH ids(eqp_id) AS (
+          SELECT UNNEST(ARRAY[
+            <foreach collection="ids" item="id" separator=",">
+              #{id}
+            </foreach>
+          ])
+        ),
+        dose_shot AS (
+          SELECT
+            st.eqp_id
+            <!-- , ... -->
+          FROM some_table st
+          JOIN ids ON ids.eqp_id = st.eqp_id
+          <!-- 여기 날짜 조건 추가: AND st.occurred_at BETWEEN #{startDate} AND #{endDate} -->
+          GROUP BY st.eqp_id
+          <!-- , ... -->
+        ),
+        slip AS (
+          SELECT
+            sp.eqp_id
+            <!-- , ... -->
+          FROM slip_table sp
+          JOIN ids ON ids.eqp_id = sp.eqp_id
+          <!-- AND sp.ts BETWEEN #{startDate} AND #{endDate} -->
+        ),
+        eff_rate AS (
+          SELECT
+            t.eqp_id
+            <!-- , ... -->
+          FROM (
+            SELECT
+              x.eqp_id
+              <!-- , ... -->
+            FROM ${schema}.table x            <!-- 스키마만 동적 식별자 -->
+            JOIN ids ON ids.eqp_id = x.eqp_id
+            <!-- AND x.dt BETWEEN #{startDate} AND #{endDate} -->
+          ) t
+        ),
+        reticle AS (
+          SELECT
+            std.eqp_id
+            <!-- , ... -->
+          FROM std_table std
+          JOIN ids ON ids.eqp_id = std.eqp_id
+          WHERE std.seq = 1
+          <!-- AND std.reg_dt BETWEEN #{startDate} AND #{endDate} -->
+        )
+        SELECT
+          er.eqp_id
+          <!-- , er.col_a, rt.col_b, ds.col_c, sp.col_d ... -->
+        FROM eff_rate   er
+        JOIN reticle    rt ON rt.eqp_id = er.eqp_id
+        JOIN dose_shot  ds ON ds.eqp_id = er.eqp_id
+        JOIN slip       sp ON sp.eqp_id = er.eqp_id
+      </foreach>
+    ) u
+  </select>
+</mapper>
+7) 결과 VO (예시)
+코드 복사
+Java
+// src/main/java/your/pkg/vo/ReportVo.java
+package your.pkg.vo;
+
+public class ReportVo {
+    private String eqpId;
+    // private ... (필요한 컬럼들)
+
+    public String getEqpId() { return eqpId; }
+    public void setEqpId(String eqpId) { this.eqpId = eqpId; }
