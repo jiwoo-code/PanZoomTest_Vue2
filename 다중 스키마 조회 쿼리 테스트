@@ -321,3 +321,133 @@ public class ReportVo {
 
     public String getEqpId() { return eqpId; }
     public void setEqpId(String eqpId) { this.eqpId = eqpId; }
+
+
+
+
+
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+<select id="selectReportGrouped" resultMap="reportMap">
+  WITH pairs(schema, eqp_id) AS (
+    <foreach collection="groups.entrySet()" item="e" separator=" UNION ALL ">
+      SELECT
+        #{e.key} AS schema,
+        UNNEST(ARRAY[
+          <foreach collection="e.value" item="id" separator=","> #{id} </foreach>
+        ]) AS eqp_id
+    </foreach>
+  )
+  SELECT * FROM (
+    <foreach collection="groups.entrySet()" item="e" separator=" UNION ALL ">
+      <bind name="schema" value="e.key"/>
+
+      SELECT
+        er.eqp_id,
+        er.eff_rate,
+        ds.rate  AS dose_shot_rate,
+        rt.rate  AS reticle_rate
+        -- [ADD: 최종 SELECT에 추가로 노출할 원본 컬럼들]
+      FROM
+      (
+        SELECT
+          t.eqp_id,
+          AVG(t.metric) * 100 AS rate
+          -- [ADD: dose_shot 최종 SELECT에 추가로 노출할 컬럼(집계/표시)]
+        FROM (
+          SELECT
+            st.eqp_id,
+            CASE
+              WHEN ROW_NUMBER() OVER (PARTITION BY st.eqp_id ORDER BY st.ts) = 1 THEN 1
+              ELSE 0
+            END AS metric
+            -- [ADD: dose_shot 내부 SELECT 컬럼들(원본 case/window 외 추가 컬럼)]
+          FROM some_table st
+            -- [ADD: dose_shot에 필요한 추가 JOIN]
+          WHERE 1=1
+            AND st.eqp_id IN (SELECT p.eqp_id FROM pairs p WHERE p.schema = #{schema})
+            -- [ADD: 원본 where.ㅇㅇㅇ 외의 추가 조건 (eqp/기간 이외 조건)]
+          <include refid="where.ㅇㅇㅇ">
+            <property name="dddd"      value="ddd"/>
+            <property name="startDate" value="#{startDate}"/>
+            <property name="endDate"   value="#{endDate}"/>
+          </include>
+            -- [ADD: 원본의 추가 AND 조건들]
+            AND st.seq = 1
+        ) t
+        GROUP BY
+          t.eqp_id
+          -- [ADD: dose_shot GROUP BY에 필요한 원본 컬럼들]
+      ) ds
+      JOIN
+      (
+        SELECT
+          t.eqp_id,
+          AVG(t.metric) * 100 AS rate
+          -- [ADD: reticle 최종 SELECT에 추가로 노출할 컬럼(집계/표시)]
+        FROM (
+          SELECT
+            std.eqp_id,
+            CASE
+              WHEN LAG(std.flag) OVER (PARTITION BY std.eqp_id ORDER BY std.ts) IS NULL THEN 1
+              ELSE 0
+            END AS metric
+            -- [ADD: reticle 내부 SELECT 컬럼들(원본 case/window 외 추가 컬럼)]
+          FROM std_table std
+            -- [ADD: reticle에 필요한 추가 JOIN]
+          WHERE 1=1
+            AND std.eqp_id IN (SELECT p.eqp_id FROM pairs p WHERE p.schema = #{schema})
+            -- [ADD: 원본 where.ㅇㅇㅇ 외의 추가 조건]
+          <include refid="where.ㅇㅇㅇ">
+            <property name="dddd"      value="ddd"/>
+            <property name="startDate" value="#{startDate}"/>
+            <property name="endDate"   value="#{endDate}"/>
+          </include>
+            -- [ADD: 원본의 추가 AND 조건들]
+            AND std.seq = 1
+        ) t
+        GROUP BY
+          t.eqp_id
+          -- [ADD: reticle GROUP BY에 필요한 원본 컬럼들]
+      ) rt
+        ON rt.eqp_id = ds.eqp_id
+      JOIN
+      (
+        SELECT
+          x.eqp_id,
+          AVG(x.val) AS eff_rate
+          -- [ADD: eff_rate 최종 SELECT에 추가로 노출할 집계/표시 컬럼]
+        FROM ${schema}.table x
+          -- [ADD: eff_rate에 필요한 추가 JOIN]
+        WHERE 1=1
+          AND x.eqp_id IN (
+            SELECT ei.eqp_id_2
+            FROM eqp_info ei
+            JOIN (SELECT p.eqp_id FROM pairs p WHERE p.schema = #{schema}) ids2
+              ON ids2.eqp_id = ei.eqp_id
+          )
+          -- [ADD: eff_rate 전용 추가 조건(기간 제외)]
+        GROUP BY
+          x.eqp_id
+          -- [ADD: eff_rate GROUP BY에 필요한 원본 컬럼들]
+      ) er
+        ON er.eqp_id = ds.eqp_id
+      JOIN
+      (
+        SELECT
+          sp.eqp_id
+          -- [ADD: slip 최종 SELECT에 노출할 컬럼]
+        FROM slip_table sp
+          -- [ADD: slip에 필요한 추가 JOIN]
+        WHERE 1=1
+          AND sp.eqp_id IN (SELECT p.eqp_id FROM pairs p WHERE p.schema = #{schema})
+          -- [ADD: slip 전용 추가 조건(기간 제외)]
+      ) sp
+        ON sp.eqp_id = er.eqp_id
+      -- [ADD: 최종 레벨 추가 JOIN/조건/ORDER BY 필요 시 여기]
+    </foreach>
+  ) u
+  -- [ADD: 전체 결과에 대한 ORDER BY / LIMIT 필요 시 여기]
+</select>
