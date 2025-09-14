@@ -329,125 +329,207 @@ public class ReportVo {
 
 ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 
+1) Service
+1-1. 인터페이스
+코드 복사
+Java
+// src/main/java/your/pkg/service/ReportService.java
+package your.pkg.service;
 
-<select id="selectReportGrouped" resultMap="reportMap">
-  WITH pairs(schema, eqp_id) AS (
-    <foreach collection="groups.entrySet()" item="e" separator=" UNION ALL ">
-      SELECT
-        #{e.key} AS schema,
-        UNNEST(ARRAY[
-          <foreach collection="e.value" item="id" separator=","> #{id} </foreach>
-        ]) AS eqp_id
-    </foreach>
-  )
-  SELECT * FROM (
-    <foreach collection="groups.entrySet()" item="e" separator=" UNION ALL ">
-      <bind name="schema" value="e.key"/>
+import your.pkg.vo.ReportVo;
+import java.util.List;
 
-      SELECT
-        er.eqp_id,
-        er.eff_rate,
-        ds.rate  AS dose_shot_rate,
-        rt.rate  AS reticle_rate
-        -- [ADD: 최종 SELECT에 추가로 노출할 원본 컬럼들]
-      FROM
-      (
+public interface ReportService {
+    List<ReportVo> searchReport(
+        List<String> schemas,    // 스키마 배열 (eqpIds와 같은 길이)
+        List<String> eqpIds,     // eqp 배열 (schemas와 같은 인덱스가 페어)
+        String startDate,        // "yyyy-MM-dd HH:mm:ss" 등
+        String endDate
+    );
+}
+1-2. 구현
+코드 복사
+Java
+// src/main/java/your/pkg/service/ReportServiceImpl.java
+package your.pkg.service;
+
+import your.pkg.mapper.ReportMapper;
+import your.pkg.vo.ReportVo;
+import org.springframework.stereotype.Service;
+
+import java.util.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@Service
+public class ReportServiceImpl implements ReportService {
+
+    private final ReportMapper reportMapper;
+    public ReportServiceImpl(ReportMapper reportMapper) {
+        this.reportMapper = reportMapper;
+    }
+
+    private static final Pattern SCHEMA = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
+
+    @Override
+    public List<ReportVo> searchReport(List<String> schemas, List<String> eqpIds, String startDate, String endDate) {
+        if (schemas == null || eqpIds == null || schemas.size() != eqpIds.size()) {
+            throw new IllegalArgumentException("schemas와 eqpIds 길이가 다릅니다.");
+        }
+
+        // 스키마 화이트리스트 검증
+        for (String s : schemas) {
+            if (s == null || !SCHEMA.matcher(s).matches()) {
+                throw new IllegalArgumentException("잘못된 스키마명: " + s);
+            }
+        }
+
+        // 스키마→EQP 리스트 그룹핑 (eff_rate UNION에 사용)
+        Map<String, List<String>> groups = new LinkedHashMap<>();
+        // 전체 EQP (dose_shot/reticle/slip 공통 IN (...)에 사용)
+        Set<String> allEqp = new LinkedHashSet<>();
+
+        for (int i = 0; i < schemas.size(); i++) {
+            String sch = schemas.get(i);
+            String id  = eqpIds.get(i);
+            if (id == null || id.isEmpty()) continue;
+            groups.computeIfAbsent(sch, k -> new ArrayList<>()).add(id);
+            allEqp.add(id);
+        }
+
+        // 중복 제거
+        groups.replaceAll((k, v) -> v.stream().distinct().collect(Collectors.toList()));
+        List<String> allEqpIds = new ArrayList<>(allEqp);
+
+        return reportMapper.selectReport(allEqpIds, groups, startDate, endDate);
+    }
+}
+2) Mapper 인터페이스
+코드 복사
+Java
+// src/main/java/your/pkg/mapper/ReportMapper.java
+package your.pkg.mapper;
+
+import your.pkg.vo.ReportVo;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+import java.util.Map;
+
+public interface ReportMapper {
+    List<ReportVo> selectReport(
+        @Param("allEqpIds") List<String> allEqpIds,            // 모든 EQP(중복 제거)
+        @Param("groups")    Map<String, List<String>> groups,  // 스키마→EQP 리스트
+        @Param("startDate") String startDate,
+        @Param("endDate")   String endDate
+    );
+}
+3) Mapper XML
+NOTE
+dose_shot/reticle에만 where.ㅇㅇㅇ include 사용.
+eff_rate_union에서만 스키마별 UNION ALL + eqp_info.eqp_id_2 IS NOT NULL 필터.
+${schema}는 식별자 치환이므로 반드시 서비스에서 화이트리스트 검증(이미 구현).
+최종 SELECT 컬럼은 예시(eqp_id, eff_rate, dose_shot_rate, reticle_rate). 실제로 필요한 컬럼/별칭에 맞춰 resultMap과 함께 수정하세요.
+코드 복사
+Xml
+<!-- src/main/resources/your/pkg/mapper/ReportMapper.xml -->
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="your.pkg.mapper.ReportMapper">
+
+  <!-- 필요한 컬럼에 맞게 수정 -->
+  <resultMap id="reportMap" type="your.pkg.vo.ReportVo">
+    <result property="eqpId"          column="eqp_id"/>
+    <result property="effRate"        column="eff_rate"/>
+    <result property="doseShotRate"   column="dose_shot_rate"/>
+    <result property="reticleRate"    column="reticle_rate"/>
+  </resultMap>
+
+  <select id="selectReport" resultMap="reportMap">
+    WITH
+    dose_shot AS (
+      SELECT t.eqp_id, AVG(t.metric) * 100 AS rate
+      FROM (
         SELECT
-          t.eqp_id,
-          AVG(t.metric) * 100 AS rate
-          -- [ADD: dose_shot 최종 SELECT에 추가로 노출할 컬럼(집계/표시)]
-        FROM (
-          SELECT
-            st.eqp_id,
-            CASE
-              WHEN ROW_NUMBER() OVER (PARTITION BY st.eqp_id ORDER BY st.ts) = 1 THEN 1
-              ELSE 0
-            END AS metric
-            -- [ADD: dose_shot 내부 SELECT 컬럼들(원본 case/window 외 추가 컬럼)]
-          FROM some_table st
-            -- [ADD: dose_shot에 필요한 추가 JOIN]
-          WHERE 1=1
-            AND st.eqp_id IN (SELECT p.eqp_id FROM pairs p WHERE p.schema = #{schema})
-            -- [ADD: 원본 where.ㅇㅇㅇ 외의 추가 조건 (eqp/기간 이외 조건)]
-          <include refid="where.ㅇㅇㅇ">
-            <property name="dddd"      value="ddd"/>
-            <property name="startDate" value="#{startDate}"/>
-            <property name="endDate"   value="#{endDate}"/>
-          </include>
-            -- [ADD: 원본의 추가 AND 조건들]
-            AND st.seq = 1
-        ) t
-        GROUP BY
-          t.eqp_id
-          -- [ADD: dose_shot GROUP BY에 필요한 원본 컬럼들]
-      ) ds
-      JOIN
-      (
+          st.eqp_id,
+          CASE
+            WHEN ROW_NUMBER() OVER (PARTITION BY st.eqp_id ORDER BY st.ts) = 1 THEN 1
+            ELSE 0
+          END AS metric
+        FROM some_table st
+        WHERE st.eqp_id IN (
+          <foreach collection="allEqpIds" item="id" separator=","> #{id} </foreach>
+        )
+        <include refid="where.ㅇㅇㅇ">
+          <property name="dddd"      value="ddd"/>
+          <property name="startDate" value="#{startDate}"/>
+          <property name="endDate"   value="#{endDate}"/>
+        </include>
+        AND st.seq = 1
+      ) t
+      GROUP BY t.eqp_id
+    ),
+    reticle AS (
+      SELECT t.eqp_id, AVG(t.metric) * 100 AS rate
+      FROM (
         SELECT
-          t.eqp_id,
-          AVG(t.metric) * 100 AS rate
-          -- [ADD: reticle 최종 SELECT에 추가로 노출할 컬럼(집계/표시)]
-        FROM (
-          SELECT
-            std.eqp_id,
-            CASE
-              WHEN LAG(std.flag) OVER (PARTITION BY std.eqp_id ORDER BY std.ts) IS NULL THEN 1
-              ELSE 0
-            END AS metric
-            -- [ADD: reticle 내부 SELECT 컬럼들(원본 case/window 외 추가 컬럼)]
-          FROM std_table std
-            -- [ADD: reticle에 필요한 추가 JOIN]
-          WHERE 1=1
-            AND std.eqp_id IN (SELECT p.eqp_id FROM pairs p WHERE p.schema = #{schema})
-            -- [ADD: 원본 where.ㅇㅇㅇ 외의 추가 조건]
-          <include refid="where.ㅇㅇㅇ">
-            <property name="dddd"      value="ddd"/>
-            <property name="startDate" value="#{startDate}"/>
-            <property name="endDate"   value="#{endDate}"/>
-          </include>
-            -- [ADD: 원본의 추가 AND 조건들]
-            AND std.seq = 1
-        ) t
-        GROUP BY
-          t.eqp_id
-          -- [ADD: reticle GROUP BY에 필요한 원본 컬럼들]
-      ) rt
-        ON rt.eqp_id = ds.eqp_id
-      JOIN
-      (
+          std.eqp_id,
+          CASE
+            WHEN LAG(std.flag) OVER (PARTITION BY std.eqp_id ORDER BY std.ts) IS NULL THEN 1
+            ELSE 0
+          END AS metric
+        FROM std_table std
+        WHERE std.eqp_id IN (
+          <foreach collection="allEqpIds" item="id" separator=","> #{id} </foreach>
+        )
+        <include refid="where.ㅇㅇㅇ">
+          <property name="dddd"      value="ddd"/>
+          <property name="startDate" value="#{startDate}"/>
+          <property name="endDate"   value="#{endDate}"/>
+        </include>
+        AND std.seq = 1
+      ) t
+      GROUP BY t.eqp_id
+    ),
+    slip AS (
+      SELECT sp.eqp_id
+      FROM slip_table sp
+      WHERE sp.eqp_id IN (
+        <foreach collection="allEqpIds" item="id" separator=","> #{id} </foreach>
+      )
+    ),
+    eff_rate_union AS (
+      <foreach collection="groups.entrySet()" item="e" separator=" UNION ALL ">
+        <bind name="schema" value="e.key"/>
         SELECT
           x.eqp_id,
           AVG(x.val) AS eff_rate
-          -- [ADD: eff_rate 최종 SELECT에 추가로 노출할 집계/표시 컬럼]
         FROM ${schema}.table x
-          -- [ADD: eff_rate에 필요한 추가 JOIN]
-        WHERE 1=1
-          AND x.eqp_id IN (
-            SELECT ei.eqp_id_2
-            FROM eqp_info ei
-            JOIN (SELECT p.eqp_id FROM pairs p WHERE p.schema = #{schema}) ids2
-              ON ids2.eqp_id = ei.eqp_id
-          )
-          -- [ADD: eff_rate 전용 추가 조건(기간 제외)]
-        GROUP BY
-          x.eqp_id
-          -- [ADD: eff_rate GROUP BY에 필요한 원본 컬럼들]
-      ) er
-        ON er.eqp_id = ds.eqp_id
-      JOIN
-      (
-        SELECT
-          sp.eqp_id
-          -- [ADD: slip 최종 SELECT에 노출할 컬럼]
-        FROM slip_table sp
-          -- [ADD: slip에 필요한 추가 JOIN]
-        WHERE 1=1
-          AND sp.eqp_id IN (SELECT p.eqp_id FROM pairs p WHERE p.schema = #{schema})
-          -- [ADD: slip 전용 추가 조건(기간 제외)]
-      ) sp
-        ON sp.eqp_id = er.eqp_id
-      -- [ADD: 최종 레벨 추가 JOIN/조건/ORDER BY 필요 시 여기]
-    </foreach>
-  ) u
-  -- [ADD: 전체 결과에 대한 ORDER BY / LIMIT 필요 시 여기]
-</select>
+        WHERE x.eqp_id IN (
+          SELECT DISTINCT ei.eqp_id_2
+          FROM eqp_info ei
+          JOIN (
+            SELECT UNNEST(ARRAY[
+              <foreach collection="e.value" item="id" separator=","> #{id} </foreach>
+            ]) AS eqp_id
+          ) s ON s.eqp_id = ei.eqp_id
+          WHERE ei.eqp_id_2 IS NOT NULL
+            AND ei.eqp_id_2 <> ''
+        )
+        GROUP BY x.eqp_id
+      </foreach>
+    )
+    SELECT
+      er.eqp_id,
+      er.eff_rate,
+      ds.rate AS dose_shot_rate,
+      rt.rate AS reticle_rate
+    FROM eff_rate_union er
+    JOIN dose_shot ds ON ds.eqp_id = er.eqp_id
+    JOIN reticle  rt ON rt.eqp_id = er.eqp_id
+    JOIN slip     sp ON sp.eqp_id = er.eqp_id
+  </select>
+</mapper>
