@@ -1,120 +1,97 @@
 WITH
-/* 1) LOT: 이전 col11 계산 */
-lot_prev AS (
-  SELECT
-    lot.col1,
-    lot.col11,
-    LAG(lot.col11, 1) OVER (PARTITION BY lot.col1 ORDER BY lot.col11) AS prev_col11,
-    lot.col13
-  FROM table2 AS lot
-  WHERE /* ...조건... */
+/* 1) lot: 이전 col11 계산 */
+lot AS (
+    SELECT
+        lot.col1,
+        lot.col11,
+        LAG(lot.col11, 1) OVER (PARTITION BY lot.col1 ORDER BY lot.col11) AS prev_col11,
+        lot.col13
+    FROM table2 AS lot
+    WHERE /* ...조건... */
 ),
 
-/* 2) ST: 공정(가칭)별 평균 시간 파생 */
+/* 2) st: 평균시간 계산 */
 st AS (
-  SELECT
-    std.*,
-    AVG(std.col14) OVER (PARTITION BY std.col1, std.col2, std.col3) AS aaa_time,
-    AVG(std.col15) OVER (PARTITION BY std.col1, std.col2, std.col3) AS bbb_time
-  FROM common.table3 AS std
-  WHERE /* ...조건... */
-  /* 필요 시: ORDER BY std.col1, std.col_name  -- 파생 집계만 필요하면 정렬은 불필요 */
+    SELECT
+        std.*,
+        AVG(col14) OVER (PARTITION BY std.col1, std.col2, std.col3) AS aaa_time,
+        AVG(col15) OVER (PARTITION BY std.col1, std.col2, std.col3) AS bbb_time
+    FROM common.table3 AS std
+    WHERE /* ...조건... */
 ),
 
 /* 3) reason: 사유 집계 */
 reason AS (
-  SELECT
-    /* 컬럼들 … */,
-    col2,
-    col17
-  FROM table /* 실제 테이블명 */
-  WHERE /* ...조건... */
-  GROUP BY /* ...그룹 키 전부... */
-),
-
-/* 4) design: 최신 1건 선별 - ROW_NUMBER 또는 DISTINCT ON 중 하나 사용 */
-design_rn AS (  -- 방법 A: ROW_NUMBER
-  SELECT *
-  FROM (
     SELECT
-      /* 키 컬럼들 … */,
-      col21,         -- 조인키
-      /* 정렬 기준 컬럼들 … */,
-      ROW_NUMBER() OVER (PARTITION BY /* 키 */ ORDER BY /* 최근순 */ DESC) AS rn
-    FROM common.tableA
+        /* 필요한 컬럼들 */,
+        col2,
+        col17
+    FROM table
     WHERE /* ...조건... */
-  ) t
-  WHERE rn = 1
-),
-design_distinct AS (  -- 방법 B: DISTINCT ON (보통 더 빠름)
-  SELECT DISTINCT ON (/* 키 */)
-    /* 키 */,
-    col21,
-    /* 기타 필요한 컬럼들 … */
-  FROM common.tableA
-  WHERE /* ...조건... */
-  ORDER BY /* 키 */, /* 최근순 */ DESC
+    GROUP BY /* 그룹 키 */
 ),
 
-/* 5) cal_t: 본체(기준 loh + lot_prev + st + reason + design) */
+/* 4) design: 최신 1건만 선택 */
+design AS (
+    SELECT *
+    FROM (
+        SELECT
+            /* 필요한 컬럼들 */,
+            col21,
+            ROW_NUMBER() OVER (PARTITION BY /* 키 */ ORDER BY /* 정렬 컬럼 */ DESC) AS rn
+        FROM common.tableA
+        WHERE /* ...조건... */
+    ) t
+    WHERE rn = 1
+),
+
+/* 5) cal_t: 메인 결합 */
 cal_t AS (
-  SELECT
-    loh.col1,
-    loh.col2,
-    COALESCE(loh.col3, loh.col4) AS col4,
-    /* ... 필요한 loh 컬럼들 ... */
-
-    /* 순번: 파티션과 정렬을 명시적으로 */
-    ROW_NUMBER() OVER (PARTITION BY loh.col2, loh.col5 ORDER BY loh.col6 DESC) AS col_num,
-
-    st.col7,
-    st.col8,
-    lot_prev.col9,       -- 원문 lot.col9였던 자리: 실제 필요한 lot 컬럼 사용
-    design.col10         -- design 컬럼도 명확히
-  FROM table1 AS loh
-  /* INNER JOIN lot_prev */
-  JOIN lot_prev
-    ON loh.col12 = lot_prev.col11
-   AND split_part(loh.col12, '_', 1) = lot_prev.col13  -- 표현식 인덱스 고려(성능 팁 참조)
-
-  /* LEFT JOIN st (조건은 조인절로 이동) */
-  LEFT JOIN st
-    ON loh.col16 = st.col16
-   AND /* std.col1 = st.col1 등 기존의 std/m 파생 조건을 조인절로 정리 */
-   AND /* str.col_seq::int4 = st.col_seq  등 */
-
-  /* LEFT JOIN reason */
-  LEFT JOIN reason
-    ON loh.col2  = reason.col2
-   AND loh.col17 = reason.col17
-
-  /* LEFT JOIN design: rn or distinct 중 선택 */
-  LEFT JOIN design_distinct AS design
-    ON st.col20 = design.col21
-
-  WHERE /* ...조건... */
-)
-
-/* 6) prevt: col1 파티션 기준으로 col3의 3-step lag을 계산
-        → (col2, col3) 기준으로 유일화하여 LEFT JOIN 가능하도록 축약 */
-, prevt AS (
-  SELECT
-    x.col2,
-    x.col3,
-    MIN(x.ppp_col) AS ppp_col  -- (col2,col3) 다중행 방지용 축약(비즈 규칙에 맞게 MIN/MAX/ANY_VALUE 선택)
-  FROM (
     SELECT
-      ct.col1, ct.col2, ct.col3,
-      LAG(ct.col3, 3, ct.col3) OVER (PARTITION BY ct.col1 ORDER BY ct.col3) AS ppp_col
-    FROM cal_t AS ct
-    WHERE ct.col3 IS NOT NULL
-  ) x
-  GROUP BY x.col2, x.col3
+        loh.col1,
+        loh.col2,
+        COALESCE(loh.col3, loh.col4) AS col4,
+        ROW_NUMBER() OVER (PARTITION BY loh.col2, loh.col5 ORDER BY loh.col6 DESC) AS col_num,
+        st.col7,
+        st.col8,
+        lot.col9,
+        design.col10
+    FROM table1 AS loh
+    JOIN lot
+      ON loh.col12 = lot.col11
+     AND split_part(loh.col12, '_', 1) = lot.col13
+    LEFT JOIN st
+      ON loh.col16 = st.col16
+     AND /* 추가 조건 */
+    LEFT JOIN reason
+      ON loh.col2  = reason.col2
+     AND loh.col17 = reason.col17
+    LEFT JOIN design
+      ON st.col20 = design.col21
+    WHERE /* ...조건... */
+),
+
+/* 6) prevt: col3 기준 lag */
+prevt AS (
+    SELECT
+        x.col2,
+        x.col3,
+        MIN(x.ppp_col) AS ppp_col
+    FROM (
+        SELECT
+            ct.col1,
+            ct.col2,
+            ct.col3,
+            LAG(ct.col3, 3, ct.col3) OVER (PARTITION BY ct.col1 ORDER BY ct.col3) AS ppp_col
+        FROM cal_t AS ct
+        WHERE ct.col3 IS NOT NULL
+    ) x
+    GROUP BY x.col2, x.col3
 )
 
 SELECT
-  ct.*,
-  prevt.ppp_col
+    ct.*,
+    prevt.ppp_col
 FROM cal_t AS ct
 LEFT JOIN prevt USING (col2, col3)
 ORDER BY ct.col3, ct.col_num;
