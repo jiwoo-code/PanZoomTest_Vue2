@@ -1,0 +1,27 @@
+mounted() {
+  // 1) 쿼리 '한 번만' 읽기
+  const raw = Array.isArray(this.$route.query.cond)
+    ? this.$route.query.cond[0]
+    : this.$route.query.cond;
+
+  // 2) 파싱 (문자열이면 parse, 객체면 그대로)
+  let parsed;
+  try {
+    parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch (e) {
+    console.error('[parse error]', e, raw);
+    return;
+  }
+
+  // 3) 콘솔의 “라이브 뷰” 혼동 방지용 스냅샷
+  const snap = JSON.parse(JSON.stringify(parsed));
+  console.log('[parsed snap]', snap);
+  console.log('[aas len]', Array.isArray(snap?.aas) ? snap.aas.length : 'no aas');
+
+  // 4) params에 안전 치환 (병합/워처 영향 회피)
+  this.$set(this, 'params', {});
+  Object.keys(snap).forEach(k => this.$set(this.params, k, snap[k]));
+
+  // 5) 즉시 검증
+  console.log('[params.aas len]', Array.isArray(this.params?.aas) ? this.params.aas.length : 'no aas');
+}
