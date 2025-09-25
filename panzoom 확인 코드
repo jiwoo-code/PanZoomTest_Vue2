@@ -1,0 +1,74 @@
+export default {
+  mounted() {
+    this.$nextTick(async () => {
+      // 0) panzoom 로딩 (ESM/CJS 어떤 환경이든 동작)
+      let panzoomFn;
+      try {
+        // CJS 우선 (webpack 환경에서 제일 안정)
+        // eslint-disable-next-line global-require
+        panzoomFn = require('panzoom');
+      } catch (_) {
+        // Vite/ESM 환경 대비
+        const mod = await import('panzoom');
+        panzoomFn = mod.default || mod;
+      }
+
+      // 1) 임포트 검증
+      console.log('[pz] typeof panzoomFn =', typeof panzoomFn);
+      if (typeof panzoomFn !== 'function') {
+        console.error('[pz] panzoomFn is NOT a function. module shape:', panzoomFn);
+        return;
+      }
+
+      // 2) 실제 설치된 패키지/버전 확인 (중복/잘못된 패키지 차단)
+      try {
+        // eslint-disable-next-line global-require
+        const meta = require('panzoom/package.json');
+        console.log('[pz] installed panzoom:', meta?.name, meta?.version);
+      } catch (e) {
+        console.warn('[pz] cannot read panzoom/package.json', e);
+      }
+
+      // 3) 타깃 엘리먼트 검증 (여기서 많이 터집니다)
+      const el = this.$refs.canvas || this.$el?.querySelector?.('#canvas') || null;
+      if (!el) {
+        console.error('[pz] target element not found (null/undefined).');
+        return;
+      }
+      if (!(el instanceof HTMLElement)) {
+        console.error('[pz] target is not an HTMLElement:', el);
+        // Vue 템플릿에서 ref="canvas"가 루트 컴포넌트일 경우 el.$el 이어야 할 수 있음
+        const maybe = el.$el;
+        if (maybe instanceof HTMLElement) {
+          console.warn('[pz] using el.$el fallback');
+        } else {
+          return;
+        }
+      }
+
+      // 4) 중복 초기화 방지 (두 번 호출 시 메서드가 undefined로 보이는 사례 방지)
+      if (this.panzoomIns?.dispose || this.panzoomIns?.pause || this.panzoomIns?.resume) {
+        try { this.panzoomIns.dispose?.(); } catch (_) {}
+        this.panzoomIns = null;
+      }
+
+      // 5) 진짜 초기화
+      const pz = panzoomFn(el, {
+        // 필요한 옵션들
+        bounds: true,
+        maxZoom: 5,
+        minZoom: 0.2,
+      });
+
+      // 6) 인스턴스 검증 (메서드 존재 확인)
+      console.log('[pz] instance methods:', Object.keys(pz || {}));
+      if (typeof pz.zoomTo !== 'function' || typeof pz.dispose !== 'function') {
+        console.error('[pz] invalid panzoom instance. maybe wrong package? instance =', pz);
+        return;
+      }
+
+      this.panzoomIns = pz;
+      console.log('[pz] init OK');
+    });
+  },
+};
