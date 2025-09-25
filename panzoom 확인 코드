@@ -1,67 +1,67 @@
-import panzoom from 'panzoom'
+import panzoom from 'panzoom';
 
 export default {
   data() {
     return {
       panzoomInstance: null,
-      panzoomInitInProgress: false
-    }
+      panzoomInitInProgress: false,
+    };
   },
 
   methods: {
     async initPanzoom(refName = 'pzTarget') {
       if (this.panzoomInstance || this.panzoomInitInProgress) {
-        return
+        return;
       }
-      this.panzoomInitInProgress = true
+      this.panzoomInitInProgress = true;
 
       // 1) ref → 실제 DOM 보정
-      let el = this.$refs[refName]
+      let el = this.$refs[refName];
       if (!el) {
-        this.panzoomInitInProgress = false
-        return
+        this.panzoomInitInProgress = false;
+        return;
       }
       if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) {
         if (el.$el && (el.$el instanceof HTMLElement || el.$el instanceof SVGElement)) {
-          el = el.$el
+          el = el.$el;
         } else {
-          this.panzoomInitInProgress = false
-          return
+          this.panzoomInitInProgress = false;
+          return;
         }
       }
 
       // 2) 동일 문서 + 연결 상태 준비 대기 (타임아웃 시 중단)
-      const sameDoc = () => el && el.ownerDocument === document
+      const sameDoc = () => el && el.ownerDocument === document;
       const isAttached = () =>
         el &&
-        (el.isConnected || (el.ownerDocument && el.ownerDocument.body.contains(el)))
+        (el.isConnected || (el.ownerDocument && el.ownerDocument.body.contains(el)));
 
       const waitUntil = (timeoutMs) =>
         new Promise((resolve, reject) => {
           function ok() {
-            return sameDoc() && isAttached()
+            return sameDoc() && isAttached();
           }
           if (ok()) {
-            resolve(true)
-            return
+            resolve(true);
+            return;
           }
 
-          let mo = null
-          let poll = null
-          let timer = null
+          let mo = null;
+          let poll = null;
+          let timer = null;
 
           function cleanup() {
             if (mo) {
-              try { mo.disconnect() } catch (e) {}
-              mo = null
+              try { mo.disconnect(); } catch (e) {}
+              mo = null;
             }
             if (poll) {
-              clearInterval(poll)
-              poll = null
+              clearInterval(poll);
+              poll = null;
             }
             if (timer) {
-              clearTimeout(timer)
-              timer = null
+              clearTimeout(timer);
+              timer = null;
             }
           }
 
@@ -69,83 +69,83 @@ export default {
             try {
               mo = new MutationObserver(() => {
                 if (ok()) {
-                  cleanup()
-                  resolve(true)
+                  cleanup();
+                  resolve(true);
                 }
-              })
-              mo.observe(document.documentElement, { childList: true, subtree: true })
+              });
+              mo.observe(document.documentElement, { childList: true, subtree: true });
             } catch (e) { /* noop */ }
           }
 
           poll = setInterval(() => {
             if (ok()) {
-              cleanup()
-              resolve(true)
+              cleanup();
+              resolve(true);
             }
-          }, 32)
+          }, 32);
 
           timer = setTimeout(() => {
-            cleanup()
-            reject(new Error('not-ready-timeout'))
-          }, timeoutMs)
-        })
+            cleanup();
+            reject(new Error('not-ready-timeout'));
+          }, timeoutMs);
+        });
 
       try {
-        await waitUntil(5000)
+        await waitUntil(5000);
       } catch (e) {
-        this.panzoomInitInProgress = false
-        return
+        this.panzoomInitInProgress = false;
+        return;
       }
 
       // 3) 대기 후 ref가 같은지 재검증
-      let cur = this.$refs[refName]
+      let cur = this.$refs[refName];
       if (cur && cur.$el) {
-        cur = cur.$el
+        cur = cur.$el;
       }
       if (cur !== el) {
-        this.panzoomInitInProgress = false
-        return
+        this.panzoomInitInProgress = false;
+        return;
       }
       if (!sameDoc()) {
-        this.panzoomInitInProgress = false
-        return
+        this.panzoomInitInProgress = false;
+        return;
       }
 
       // 4) 기존 인스턴스 정리 후 생성
       if (this.panzoomInstance && typeof this.panzoomInstance.dispose === 'function') {
-        try { this.panzoomInstance.dispose() } catch (e) {}
-        this.panzoomInstance = null
+        try { this.panzoomInstance.dispose(); } catch (e) {}
+        this.panzoomInstance = null;
       }
 
       try {
         const pz = panzoom(el, {
           bounds: true,
           maxZoom: 5,
-          minZoom: 0.2
-        })
+          minZoom: 0.2,
+        });
 
         if (
           !pz ||
           typeof pz.zoomTo !== 'function' ||
           typeof pz.dispose !== 'function'
         ) {
-          this.panzoomInitInProgress = false
-          return
+          this.panzoomInitInProgress = false;
+          return;
         }
 
-        this.panzoomInstance = pz
+        this.panzoomInstance = pz;
       } catch (e) {
         // 필요 시 로깅
       } finally {
-        this.panzoomInitInProgress = false
+        this.panzoomInitInProgress = false;
       }
-    }
+    },
   },
 
   beforeDestroy() {
     if (this.panzoomInstance && typeof this.panzoomInstance.dispose === 'function') {
-      try { this.panzoomInstance.dispose() } catch (e) {}
+      try { this.panzoomInstance.dispose(); } catch (e) {}
     }
-    this.panzoomInstance = null
-  }
-}
+    this.panzoomInstance = null;
+  },
+};
