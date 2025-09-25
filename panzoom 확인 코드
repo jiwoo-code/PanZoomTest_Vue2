@@ -1,85 +1,76 @@
-// import Panzoom from 'panzoom';  // 기존대로 사용
-
 async function initPanzoom(vm, refName = 'pzTarget') {
-  // 0) ref → 실제 DOM 보정
+  // 0) ref → 실제 DOM
   let el = vm.$refs[refName];
   if (el && el.$el) el = el.$el;
+  if (!el || !(el instanceof HTMLElement || el instanceof SVGElement)) {
+    console.error('[pz] DOM ref가 아님/null');
+    return;
+  }
 
-  // 1) DOM 연결/동일 문서 확인 (width/height와 별개로 매우 중요)
-  const inSameDoc = el?.ownerDocument === document;
-  const isConnected = !!el?.isConnected || (el && document.body.contains(el));
-  console.log('[pz:init] check', {
-    tag: el?.tagName, inSameDoc, isConnected,
+  const sameDoc = () => el?.ownerDocument === document;
+  const isAttached = () =>
+    !!el && (el.isConnected || (el.ownerDocument && el.ownerDocument.body.contains(el)));
+
+  // (A) 초기 상태 로그
+  console.log('[check:before]', {
+    inSameDoc: sameDoc(),
+    isConnected: isAttached(),
     root: el?.getRootNode?.()?.constructor?.name
   });
-  if (!el || !(el instanceof HTMLElement || el instanceof SVGElement)) {
-    console.error('[pz] ref가 DOM이 아님(또는 null). DOM 요소에 ref 달아주세요.');
-    return;
-  }
 
-  // 2) “실제 표시·연결” 보장 (연결될 때까지 대기)
-  await new Promise((resolve) => {
-    const ready = () => {
-      const ok = el && (el.isConnected || document.body.contains(el)) &&
-                 el.ownerDocument === document;
-      if (ok) {
-        requestAnimationFrame(() => requestAnimationFrame(resolve)); // 2프레임 안정화
-        return true;
-      }
-      return false;
-    };
-    if (ready()) return;
-    let mo, t;
+  // 1) “연결+동일문서”가 될 때까지 기다리되, 타임아웃 시 중단
+  const waitUntil = (timeoutMs = 5000) => new Promise((resolve, reject) => {
+    const ok = () => sameDoc() && isAttached();
+    if (ok()) return resolve(true);
+
+    let mo, timer, poll;
+    const cleanup = () => { mo?.disconnect?.(); clearInterval(poll); clearTimeout(timer); };
+
     if ('MutationObserver' in window) {
-      mo = new MutationObserver(() => { if (ready()) { mo.disconnect(); } });
-      mo.observe(document.documentElement, { childList: true, subtree: true });
+      mo = new MutationObserver(() => { if (ok()) { cleanup(); resolve(true); } });
+      try { mo.observe(document.documentElement, { childList: true, subtree: true }); } catch {}
     }
-    t = setInterval(() => { if (ready()) { clearInterval(t); } }, 32);
-    setTimeout(() => { mo?.disconnect?.(); clearInterval(t); resolve(); }, 1000);
+    poll = setInterval(() => { if (ok()) { cleanup(); resolve(true); } }, 32);
+    timer = setTimeout(() => { cleanup(); reject(new Error('not-ready-timeout')); }, timeoutMs);
   });
 
-  // 3) 리렌더로 엘리먼트 교체 감시(초기화 도중 바뀌면 중단)
-  const elAtStart = el;
-  const stillSameEl = () => vm.$refs[refName] === elAtStart || vm.$refs[refName]?.$el === elAtStart;
-  if (!stillSameEl()) {
-    console.warn('[pz] 엘리먼트가 초기화 도중 교체됨. 재시도 필요.');
+  try {
+    await waitUntil(5000);
+  } catch (e) {
+    console.warn('[pz] 준비 미완료(동일 문서/연결 아님). 초기화 중단.', e.message);
+    return; // ✅ 준비 안 되면 여기서 종료
+  }
+
+  // 2) 대기 후 ref/엘리먼트 재확인 (리렌더/교체 대비)
+  let cur = vm.$refs[refName];
+  if (cur && cur.$el) cur = cur.$el;
+  if (cur !== el) {
+    console.warn('[pz] 대기 중 엘리먼트 교체 감지 → 재시도 필요');
+    return;
+  }
+  if (!sameDoc()) {
+    console.warn('[pz] 동일 문서 아님(ownerDocument !== document) → 부모 문서가 아닌 해당 문서 컨텍스트에서 초기화 필요');
     return;
   }
 
-  // 4) 중복 초기화 방지 및 안전 생성
-  if (vm.panzoomIns?.dispose) {
-    try { vm.panzoomIns.dispose(); } catch {}
-    vm.panzoomIns = null;
-  }
-
+  // 3) 실제 초기화
   try {
     const panzoomFn = (typeof Panzoom === 'function' ? Panzoom : (Panzoom?.default || Panzoom));
-    const pz = panzoomFn(el, {
-      bounds: true,
-      maxZoom: 5,
-      minZoom: 0.2,
-    });
-    // 인스턴스 검증
+    const pz = panzoomFn(el, { bounds: true, maxZoom: 5, minZoom: 0.2 });
+
     if (typeof pz?.zoomTo !== 'function' || typeof pz?.dispose !== 'function') {
-      throw new Error('Invalid panzoom instance');
+      throw new Error('invalid instance');
     }
 
-    // 5) 초기화 직후에도 같은 엘리먼트인지 최종 확인
-    if (!stillSameEl()) {
-      console.warn('[pz] init 직후 엘리먼트 교체 감지 → dispose 후 종료');
-      try { pz.dispose(); } catch {}
-      return;
-    }
-
+    vm.panzoomIns?.dispose?.();
     vm.panzoomIns = pz;
     console.log('[pz] init OK');
   } catch (e) {
     console.error('[pz] init FAIL:', e);
-    // 추가 진단 정보
-    console.log('[pz] el dump', {
-      tag: el.tagName, id: el.id, cls: el.className,
-      isConnected: el.isConnected, inDoc: document.body.contains(el),
-      ownerIsDoc: el.ownerDocument === document,
+    console.log('[dump]', {
+      inSameDoc: sameDoc(),
+      isConnected: isAttached(),
+      tag: el.tagName, id: el.id, cls: el.className
     });
   }
 }
