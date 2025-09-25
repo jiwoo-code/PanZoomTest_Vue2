@@ -75,3 +75,77 @@ export default {
               })
               mo.observe(document.documentElement, { childList: true, subtree: true })
             } catch (e) { /* noop */ }
+          }
+
+          poll = setInterval(() => {
+            if (ok()) {
+              cleanup()
+              resolve(true)
+            }
+          }, 32)
+
+          timer = setTimeout(() => {
+            cleanup()
+            reject(new Error('not-ready-timeout'))
+          }, timeoutMs)
+        })
+
+      try {
+        await waitUntil(5000)
+      } catch (e) {
+        this.panzoomInitInProgress = false
+        return
+      }
+
+      // 3) 대기 후 ref가 같은지 재검증
+      let cur = this.$refs[refName]
+      if (cur && cur.$el) {
+        cur = cur.$el
+      }
+      if (cur !== el) {
+        this.panzoomInitInProgress = false
+        return
+      }
+      if (!sameDoc()) {
+        this.panzoomInitInProgress = false
+        return
+      }
+
+      // 4) 기존 인스턴스 정리 후 생성
+      if (this.panzoomInstance && typeof this.panzoomInstance.dispose === 'function') {
+        try { this.panzoomInstance.dispose() } catch (e) {}
+        this.panzoomInstance = null
+      }
+
+      try {
+        const pz = panzoom(el, {
+          bounds: true,
+          maxZoom: 5,
+          minZoom: 0.2
+        })
+
+        if (
+          !pz ||
+          typeof pz.zoomTo !== 'function' ||
+          typeof pz.dispose !== 'function'
+        ) {
+          this.panzoomInitInProgress = false
+          return
+        }
+
+        this.panzoomInstance = pz
+      } catch (e) {
+        // 필요 시 로깅
+      } finally {
+        this.panzoomInitInProgress = false
+      }
+    }
+  },
+
+  beforeDestroy() {
+    if (this.panzoomInstance && typeof this.panzoomInstance.dispose === 'function') {
+      try { this.panzoomInstance.dispose() } catch (e) {}
+    }
+    this.panzoomInstance = null
+  }
+}
