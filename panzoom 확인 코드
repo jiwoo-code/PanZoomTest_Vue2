@@ -1,32 +1,31 @@
-// 예) 컴포넌트 상단
 import panzoom from 'panzoom'
 
 export default {
   data() {
     return {
-      panzoomIns: null,
-      _pzInitRequested: false
+      panzoomInstance: null,
+      panzoomInitInProgress: false
     }
   },
 
   methods: {
     async initPanzoom(refName = 'pzTarget') {
-      if (this.panzoomIns || this._pzInitRequested) {
+      if (this.panzoomInstance || this.panzoomInitInProgress) {
         return
       }
-      this._pzInitRequested = true
+      this.panzoomInitInProgress = true
 
       // 1) ref → 실제 DOM 보정
       let el = this.$refs[refName]
       if (!el) {
-        this._pzInitRequested = false
+        this.panzoomInitInProgress = false
         return
       }
       if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) {
         if (el.$el && (el.$el instanceof HTMLElement || el.$el instanceof SVGElement)) {
           el = el.$el
         } else {
-          this._pzInitRequested = false
+          this.panzoomInitInProgress = false
           return
         }
       }
@@ -76,90 +75,3 @@ export default {
               })
               mo.observe(document.documentElement, { childList: true, subtree: true })
             } catch (e) { /* noop */ }
-          }
-
-          poll = setInterval(() => {
-            if (ok()) {
-              cleanup()
-              resolve(true)
-            }
-          }, 32)
-
-          timer = setTimeout(() => {
-            cleanup()
-            reject(new Error('not-ready-timeout'))
-          }, timeoutMs)
-        })
-
-      try {
-        await waitUntil(5000)
-      } catch (e) {
-        this._pzInitRequested = false
-        return
-      }
-
-      // 3) 대기 후 ref가 같은지 재검증(리렌더로 교체된 경우 방지)
-      let cur = this.$refs[refName]
-      if (cur && cur.$el) {
-        cur = cur.$el
-      }
-      if (cur !== el) {
-        this._pzInitRequested = false
-        return
-      }
-      if (!sameDoc()) {
-        // 다른 window/iframe 문서 소속이면 해당 컨텍스트에서 초기화해야 합니다.
-        this._pzInitRequested = false
-        return
-      }
-
-      // 4) 기존 인스턴스 정리 후 생성
-      if (this.panzoomIns && typeof this.panzoomIns.dispose === 'function') {
-        try { this.panzoomIns.dispose() } catch (e) {}
-        this.panzoomIns = null
-      }
-
-      try {
-        const pz = panzoom(el, {
-          bounds: true,
-          maxZoom: 5,
-          minZoom: 0.2
-        })
-
-        if (
-          !pz ||
-          typeof pz.zoomTo !== 'function' ||
-          typeof pz.dispose !== 'function'
-        ) {
-          this._pzInitRequested = false
-          return
-        }
-
-        this.panzoomIns = pz
-      } catch (e) {
-        // 필요 시 로깅
-      } finally {
-        this._pzInitRequested = false
-      }
-    }
-  },
-
-  beforeDestroy() {
-    if (this.panzoomIns && typeof this.panzoomIns.dispose === 'function') {
-      try { this.panzoomIns.dispose() } catch (e) {}
-    }
-    this.panzoomIns = null
-  }
-}
-
-
-ㅅㅏ용 예
-
-// 외부 데이터 수신 → 사이즈 반영
-this.canvasW = w
-this.canvasH = h
-
-// DOM 반영 후 초기화
-this.$nextTick(() => {
-  this.initPanzoom('pzTarget') // ref="pzTarget"인 DOM 요소에 붙음
-})
