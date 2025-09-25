@@ -1,4 +1,3 @@
-// vue2 컴포넌트 예시
 import panzoom from 'panzoom';
 
 export default {
@@ -6,23 +5,22 @@ export default {
     return {
       panzoomInstance: null,
       panzoomInitInProgress: false,
-      panzoomDebug: true, // 필요 시 false로 꺼도 됩니다.
     };
   },
 
   methods: {
     async initPanzoom(refName = 'pzTarget') {
       if (this.panzoomInstance || this.panzoomInitInProgress) {
-        if (this.panzoomDebug) console.log('[PZ][STEP0] skip init: already initialized or in progress.');
+        console.log('[PZ][STEP0] skip init: already initialized or in progress.');
         return;
       }
       this.panzoomInitInProgress = true;
 
-      // --- helpers (arrow function, 한 줄 하나, ;/trailing comma 규칙 준수) ---
+      // helpers
       const dumpEl = (el) => {
-        const inCurrentDoc = el && el.ownerDocument === document;
-        const inOwnerBody = el && el.ownerDocument && el.ownerDocument.body && el.ownerDocument.body.contains(el);
-        const inCurrentBody = el && document.body && document.body.contains(el);
+        const inCurrentDoc = !!(el && el.ownerDocument === document);
+        const inOwnerBody = !!(el && el.ownerDocument && el.ownerDocument.body && el.ownerDocument.body.contains(el));
+        const inCurrentBody = !!(el && document.body && document.body.contains(el));
         const rootNode = el && el.getRootNode ? el.getRootNode() : null;
         return {
           tag: el ? el.tagName : null,
@@ -30,8 +28,8 @@ export default {
           className: el ? el.className : null,
           isConnected: !!(el && el.isConnected),
           ownerIsCurrentDocument: inCurrentDoc,
-          inOwnerBody: !!inOwnerBody,
-          inCurrentBody: !!inCurrentBody,
+          inOwnerBody: inOwnerBody,
+          inCurrentBody: inCurrentBody,
           offsetWidth: el ? el.offsetWidth : null,
           offsetHeight: el ? el.offsetHeight : null,
           rootNodeType: rootNode ? rootNode.constructor.name : null,
@@ -39,27 +37,41 @@ export default {
       };
 
       const sameDoc = (el) => el && el.ownerDocument === document;
-      const isAttached = (el) => el && (el.isConnected || (el.ownerDocument && el.ownerDocument.body && el.ownerDocument.body.contains(el)));
+      const isAttached = (el) =>
+        el &&
+        (el.isConnected || (el.ownerDocument && el.ownerDocument.body && el.ownerDocument.body.contains(el)));
 
       const waitUntilReady = (el, timeoutMs) =>
         new Promise((resolve, reject) => {
-          const ok = () => sameDoc(el) && isAttached(el);
+          function ok() {
+            return sameDoc(el) && isAttached(el);
+          }
           if (ok()) {
             resolve(true);
             return;
           }
+
           let mo = null;
           let poll = null;
           let timer = null;
 
-          const cleanup = () => {
-            if (mo) { try { mo.disconnect(); } catch (e) {} mo = null; }
-            if (poll) { clearInterval(poll); poll = null; }
-            if (timer) { clearTimeout(timer); timer = null; }
-          };
+          function cleanup() {
+            if (mo) {
+              try { mo.disconnect(); } catch (e) {}
+              mo = null;
+            }
+            if (poll) {
+              clearInterval(poll);
+              poll = null;
+            }
+            if (timer) {
+              clearTimeout(timer);
+              timer = null;
+            }
+          }
 
-          if (typeof MutationObserver !== 'undefined') {
-            try {
+          try {
+            if (typeof MutationObserver !== 'undefined') {
               mo = new MutationObserver(() => {
                 if (ok()) {
                   cleanup();
@@ -67,9 +79,9 @@ export default {
                 }
               });
               mo.observe(document.documentElement, { childList: true, subtree: true });
-            } catch (e) {
-              // noop
             }
+          } catch (e) {
+            console.warn('[PZ][WARN2] MutationObserver setup failed:', e && e.message ? e.message : e,);
           }
 
           poll = setInterval(() => {
@@ -86,35 +98,35 @@ export default {
         });
 
       // 1) ref → 실제 DOM 확보
-      if (this.panzoomDebug) console.log('[PZ][STEP1] resolve ref:', refName);
+      console.log('[PZ][STEP1] resolve ref:', refName);
       let el = this.$refs[refName];
       if (!el) {
-        if (this.panzoomDebug) console.error('[PZ][ERR1] ref is null:', refName);
+        console.error('[PZ][ERR1] ref is null:', refName);
         this.panzoomInitInProgress = false;
         return;
       }
       if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) {
         if (el.$el && (el.$el instanceof HTMLElement || el.$el instanceof SVGElement)) {
-          if (this.panzoomDebug) console.log('[PZ][STEP1a] ref is component → use $el.');
+          console.log('[PZ][STEP1a] ref is component → use $el.');
           el = el.$el;
         } else {
-          if (this.panzoomDebug) console.error('[PZ][ERR1a] ref is not DOM nor component with $el.');
+          console.error('[PZ][ERR1a] ref is not DOM nor component with $el.');
           this.panzoomInitInProgress = false;
           return;
         }
       }
-      if (this.panzoomDebug) console.log('[PZ][DUMP1]', dumpEl(el));
+      console.log('[PZ][DUMP1]', dumpEl(el),);
 
       // 2) 동일 문서 + 연결 상태 준비 대기
-      if (this.panzoomDebug) console.log('[PZ][STEP2] waitUntilReady start...');
+      console.log('[PZ][STEP2] waitUntilReady start...');
       try {
         await waitUntilReady(el, 5000);
       } catch (e) {
-        if (this.panzoomDebug) console.warn('[PZ][ERR2] not ready (sameDoc/attached) → abort.', e && e.message ? e.message : e);
+        console.warn('[PZ][ERR2] not ready (sameDoc/attached) → abort.', e && e.message ? e.message : e,);
         this.panzoomInitInProgress = false;
         return;
       }
-      if (this.panzoomDebug) console.log('[PZ][DUMP2] after waitUntilReady:', dumpEl(el));
+      console.log('[PZ][DUMP2] after waitUntilReady:', dumpEl(el),);
 
       // 3) 대기 후 ref가 같은지 / 동일 문서인지 재검증
       let cur = this.$refs[refName];
@@ -122,12 +134,12 @@ export default {
         cur = cur.$el;
       }
       if (cur !== el) {
-        if (this.panzoomDebug) console.warn('[PZ][ERR3] element replaced during wait → abort.');
+        console.warn('[PZ][ERR3] element replaced during wait → abort.');
         this.panzoomInitInProgress = false;
         return;
       }
       if (!sameDoc(el)) {
-        if (this.panzoomDebug) console.warn('[PZ][ERR3a] ownerDocument !== document → must init in that window/iframe context.');
+        console.warn('[PZ][ERR3a] ownerDocument !== document → must init in that window/iframe context.');
         this.panzoomInitInProgress = false;
         return;
       }
@@ -135,51 +147,45 @@ export default {
       // 4) 기존 인스턴스 정리
       if (this.panzoomInstance && typeof this.panzoomInstance.dispose === 'function') {
         try {
-          if (this.panzoomDebug) console.log('[PZ][STEP4] dispose previous instance.');
+          console.log('[PZ][STEP4] dispose previous instance.');
           this.panzoomInstance.dispose();
         } catch (e) {
-          if (this.panzoomDebug) console.warn('[PZ][WARN4] dispose error:', e && e.message ? e.message : e);
+          console.warn('[PZ][WARN4] dispose error:', e && e.message ? e.message : e,);
         }
         this.panzoomInstance = null;
       }
 
       // 5) panzoom 모듈 형태 확인
-      if (this.panzoomDebug) {
-        const modName = typeof panzoom === 'function' ? 'function' : (typeof panzoom);
-        console.log('[PZ][STEP5] typeof panzoom:', modName);
-      }
+      console.log('[PZ][STEP5] typeof panzoom:', typeof panzoom,);
 
-      // 6) 실제 초기화 (문제 지점 파악용 상세 로그)
+      // 6) 실제 초기화
       try {
-        if (this.panzoomDebug) console.log('[PZ][STEP6] about to init on element:', dumpEl(el));
+        console.log('[PZ][STEP6] about to init on element:', dumpEl(el),);
         const pz = panzoom(el, {
           bounds: true,
           maxZoom: 5,
           minZoom: 0.2,
         });
         if (!pz || typeof pz.zoomTo !== 'function' || typeof pz.dispose !== 'function') {
-          if (this.panzoomDebug) console.error('[PZ][ERR6] invalid instance (missing methods).');
+          console.error('[PZ][ERR6] invalid instance (missing methods).');
           this.panzoomInitInProgress = false;
           return;
         }
         this.panzoomInstance = pz;
-        if (this.panzoomDebug) {
-          const keys = Object.keys(pz);
-          console.log('[PZ][STEP6a] init OK. instance keys:', keys);
-        }
+        const keys = Object.keys(pz);
+        console.log('[PZ][STEP6a] init OK. instance keys:', keys,);
       } catch (e) {
-        // 여기 에러 로그를 꼭 복붙해 주세요!
         const msg = e && e.message ? e.message : String(e);
         const stack = e && e.stack ? e.stack : null;
-        console.error('[PZ][FAIL6] init error:', msg);
-        if (stack) console.error('[PZ][STACK]', stack);
-        console.log('[PZ][DUMP6] element at fail:', dumpEl(el));
+        console.error('[PZ][FAIL6] init error:', msg,);
+        if (stack) console.error('[PZ][STACK]', stack,);
+        console.log('[PZ][DUMP6] element at fail:', dumpEl(el),);
         this.panzoomInitInProgress = false;
         return;
       }
 
       // 7) 최종 확인
-      if (this.panzoomDebug) console.log('[PZ][STEP7] done. attached:', isAttached(el), 'sameDoc:', sameDoc(el));
+      console.log('[PZ][STEP7] done. attached:', isAttached(el), 'sameDoc:', sameDoc(el),);
       this.panzoomInitInProgress = false;
     },
   },
