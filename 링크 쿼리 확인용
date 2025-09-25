@@ -1,27 +1,62 @@
-mounted() {
-  // 1) 쿼리 '한 번만' 읽기
-  const raw = Array.isArray(this.$route.query.cond)
-    ? this.$route.query.cond[0]
-    : this.$route.query.cond;
+export default {
+  data() {
+    return {
+      transParam: {},    // ✅ 기존 params 대신 사용하는 상태
+      _hydrating: false, // 초기 주입 구간에서는 추적 로그 무시
+    };
+  },
 
-  // 2) 파싱 (문자열이면 parse, 객체면 그대로)
-  let parsed;
-  try {
-    parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-  } catch (e) {
-    console.error('[parse error]', e, raw);
-    return;
+  created() {
+    this.installTransParamSpies();
+  },
+
+  methods: {
+    // -------------------------------
+    // 1. 추적기 설치
+    // -------------------------------
+    installTransParamSpies() {
+      const vm = this;
+
+      // (A) transParam 전체 교체 감지
+      vm.$watch(() => vm.transParam, (next, prev) => {
+        if (vm._hydrating) return;
+        console.warn('[SPY][REPLACE transParam]', {
+          from: JSON.parse(JSON.stringify(prev || {})),
+          to:   JSON.parse(JSON.stringify(next || {}))
+        });
+        console.trace(); // ★ 범인 스택
+      }, { deep: false });
+
+      // (B) transParam 내부 변경 감지 (배열 push/splice, 키 수정 등)
+      vm.$watch('transParam', (next, prev) => {
+        if (vm._hydrating) return;
+        console.warn('[SPY][MUTATE transParam]', {
+          from: JSON.parse(JSON.stringify(prev || {})),
+          to:   JSON.parse(JSON.stringify(next || {}))
+        });
+        console.trace(); // ★ 범인 스택
+      }, { deep: true });
+    },
+  },
+
+  mounted() {
+    // -------------------------------
+    // 2. cond 파라미터 간결 초기화
+    // -------------------------------
+    this._hydrating = true;
+
+    try {
+      const cond = this.$route.query.cond;
+      const raw  = Array.isArray(cond) ? cond[0] : cond;
+      this.transParam = JSON.parse(raw);   // 바로 파싱 후 세팅
+    } catch (e) {
+      console.error('[parse error]', e, this.$route.query.cond);
+      this.transParam = {};                // 실패 시 기본값
+    }
+
+    this.$nextTick(() => {
+      this._hydrating = false;
+      console.log('[after hydrate]', JSON.parse(JSON.stringify(this.transParam)));
+    });
   }
-
-  // 3) 콘솔의 “라이브 뷰” 혼동 방지용 스냅샷
-  const snap = JSON.parse(JSON.stringify(parsed));
-  console.log('[parsed snap]', snap);
-  console.log('[aas len]', Array.isArray(snap?.aas) ? snap.aas.length : 'no aas');
-
-  // 4) params에 안전 치환 (병합/워처 영향 회피)
-  this.$set(this, 'params', {});
-  Object.keys(snap).forEach(k => this.$set(this.params, k, snap[k]));
-
-  // 5) 즉시 검증
-  console.log('[params.aas len]', Array.isArray(this.params?.aas) ? this.params.aas.length : 'no aas');
-}
+};
