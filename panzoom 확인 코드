@@ -1,76 +1,165 @@
-async function initPanzoom(vm, refName = 'pzTarget') {
-  // 0) ref → 실제 DOM
-  let el = vm.$refs[refName];
-  if (el && el.$el) el = el.$el;
-  if (!el || !(el instanceof HTMLElement || el instanceof SVGElement)) {
-    console.error('[pz] DOM ref가 아님/null');
-    return;
-  }
+// 예) 컴포넌트 상단
+import panzoom from 'panzoom'
 
-  const sameDoc = () => el?.ownerDocument === document;
-  const isAttached = () =>
-    !!el && (el.isConnected || (el.ownerDocument && el.ownerDocument.body.contains(el)));
-
-  // (A) 초기 상태 로그
-  console.log('[check:before]', {
-    inSameDoc: sameDoc(),
-    isConnected: isAttached(),
-    root: el?.getRootNode?.()?.constructor?.name
-  });
-
-  // 1) “연결+동일문서”가 될 때까지 기다리되, 타임아웃 시 중단
-  const waitUntil = (timeoutMs = 5000) => new Promise((resolve, reject) => {
-    const ok = () => sameDoc() && isAttached();
-    if (ok()) return resolve(true);
-
-    let mo, timer, poll;
-    const cleanup = () => { mo?.disconnect?.(); clearInterval(poll); clearTimeout(timer); };
-
-    if ('MutationObserver' in window) {
-      mo = new MutationObserver(() => { if (ok()) { cleanup(); resolve(true); } });
-      try { mo.observe(document.documentElement, { childList: true, subtree: true }); } catch {}
+export default {
+  data() {
+    return {
+      panzoomIns: null,
+      _pzInitRequested: false
     }
-    poll = setInterval(() => { if (ok()) { cleanup(); resolve(true); } }, 32);
-    timer = setTimeout(() => { cleanup(); reject(new Error('not-ready-timeout')); }, timeoutMs);
-  });
+  },
 
-  try {
-    await waitUntil(5000);
-  } catch (e) {
-    console.warn('[pz] 준비 미완료(동일 문서/연결 아님). 초기화 중단.', e.message);
-    return; // ✅ 준비 안 되면 여기서 종료
-  }
+  methods: {
+    async initPanzoom(refName = 'pzTarget') {
+      if (this.panzoomIns || this._pzInitRequested) {
+        return
+      }
+      this._pzInitRequested = true
 
-  // 2) 대기 후 ref/엘리먼트 재확인 (리렌더/교체 대비)
-  let cur = vm.$refs[refName];
-  if (cur && cur.$el) cur = cur.$el;
-  if (cur !== el) {
-    console.warn('[pz] 대기 중 엘리먼트 교체 감지 → 재시도 필요');
-    return;
-  }
-  if (!sameDoc()) {
-    console.warn('[pz] 동일 문서 아님(ownerDocument !== document) → 부모 문서가 아닌 해당 문서 컨텍스트에서 초기화 필요');
-    return;
-  }
+      // 1) ref → 실제 DOM 보정
+      let el = this.$refs[refName]
+      if (!el) {
+        this._pzInitRequested = false
+        return
+      }
+      if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) {
+        if (el.$el && (el.$el instanceof HTMLElement || el.$el instanceof SVGElement)) {
+          el = el.$el
+        } else {
+          this._pzInitRequested = false
+          return
+        }
+      }
 
-  // 3) 실제 초기화
-  try {
-    const panzoomFn = (typeof Panzoom === 'function' ? Panzoom : (Panzoom?.default || Panzoom));
-    const pz = panzoomFn(el, { bounds: true, maxZoom: 5, minZoom: 0.2 });
+      // 2) 동일 문서 + 연결 상태 준비 대기 (타임아웃 시 중단)
+      const sameDoc = () => el && el.ownerDocument === document
+      const isAttached = () =>
+        el &&
+        (el.isConnected || (el.ownerDocument && el.ownerDocument.body.contains(el)))
 
-    if (typeof pz?.zoomTo !== 'function' || typeof pz?.dispose !== 'function') {
-      throw new Error('invalid instance');
+      const waitUntil = (timeoutMs) =>
+        new Promise((resolve, reject) => {
+          function ok() {
+            return sameDoc() && isAttached()
+          }
+          if (ok()) {
+            resolve(true)
+            return
+          }
+
+          let mo = null
+          let poll = null
+          let timer = null
+
+          function cleanup() {
+            if (mo) {
+              try { mo.disconnect() } catch (e) {}
+              mo = null
+            }
+            if (poll) {
+              clearInterval(poll)
+              poll = null
+            }
+            if (timer) {
+              clearTimeout(timer)
+              timer = null
+            }
+          }
+
+          if (typeof MutationObserver !== 'undefined') {
+            try {
+              mo = new MutationObserver(() => {
+                if (ok()) {
+                  cleanup()
+                  resolve(true)
+                }
+              })
+              mo.observe(document.documentElement, { childList: true, subtree: true })
+            } catch (e) { /* noop */ }
+          }
+
+          poll = setInterval(() => {
+            if (ok()) {
+              cleanup()
+              resolve(true)
+            }
+          }, 32)
+
+          timer = setTimeout(() => {
+            cleanup()
+            reject(new Error('not-ready-timeout'))
+          }, timeoutMs)
+        })
+
+      try {
+        await waitUntil(5000)
+      } catch (e) {
+        this._pzInitRequested = false
+        return
+      }
+
+      // 3) 대기 후 ref가 같은지 재검증(리렌더로 교체된 경우 방지)
+      let cur = this.$refs[refName]
+      if (cur && cur.$el) {
+        cur = cur.$el
+      }
+      if (cur !== el) {
+        this._pzInitRequested = false
+        return
+      }
+      if (!sameDoc()) {
+        // 다른 window/iframe 문서 소속이면 해당 컨텍스트에서 초기화해야 합니다.
+        this._pzInitRequested = false
+        return
+      }
+
+      // 4) 기존 인스턴스 정리 후 생성
+      if (this.panzoomIns && typeof this.panzoomIns.dispose === 'function') {
+        try { this.panzoomIns.dispose() } catch (e) {}
+        this.panzoomIns = null
+      }
+
+      try {
+        const pz = panzoom(el, {
+          bounds: true,
+          maxZoom: 5,
+          minZoom: 0.2
+        })
+
+        if (
+          !pz ||
+          typeof pz.zoomTo !== 'function' ||
+          typeof pz.dispose !== 'function'
+        ) {
+          this._pzInitRequested = false
+          return
+        }
+
+        this.panzoomIns = pz
+      } catch (e) {
+        // 필요 시 로깅
+      } finally {
+        this._pzInitRequested = false
+      }
     }
+  },
 
-    vm.panzoomIns?.dispose?.();
-    vm.panzoomIns = pz;
-    console.log('[pz] init OK');
-  } catch (e) {
-    console.error('[pz] init FAIL:', e);
-    console.log('[dump]', {
-      inSameDoc: sameDoc(),
-      isConnected: isAttached(),
-      tag: el.tagName, id: el.id, cls: el.className
-    });
+  beforeDestroy() {
+    if (this.panzoomIns && typeof this.panzoomIns.dispose === 'function') {
+      try { this.panzoomIns.dispose() } catch (e) {}
+    }
+    this.panzoomIns = null
   }
 }
+
+
+ㅅㅏ용 예
+
+// 외부 데이터 수신 → 사이즈 반영
+this.canvasW = w
+this.canvasH = h
+
+// DOM 반영 후 초기화
+this.$nextTick(() => {
+  this.initPanzoom('pzTarget') // ref="pzTarget"인 DOM 요소에 붙음
+})
