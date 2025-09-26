@@ -1,29 +1,12 @@
-"betterStatusBar.commands": [
-  {
-    "id": "cleanBranches",
-    "label": "🧹 Clean Git Branches",
-    "tooltip": "원격 삭제된 브랜치 정리 + 병합된 로컬 브랜치 삭제",
-    "color": "yellow",
-    "command": "git fetch -p && for /f %i in ('git branch --merged ^| findstr /v \"* main master\"') do git branch -d %i",
-    "terminal": {
-      "name": "branch-clean",
-      "focus": false,
-      "singleInstance": true,
-      "clear": true
-    }
+Command Runner(edonet)으로 사용
+
+{
+  "command-runner.showButton": true,
+  "command-runner.commands": {
+    // 1. 브랜치 삭제 (VS Code 내장 명령 호출)
+    "🗑 Delete Branch": "workbench.action.git.deleteBranch",
+
+    // 2. 병합된 브랜치 정리 + 원격 브랜치 동기화
+    "🧹 Clean Git Branches": "cmd /c \"git fetch -p && for /f %i in ('git branch --merged ^| findstr /v \\\"* main master\\\"') do git branch -d %i\""
   }
-],
-"betterStatusBar.commands": [
-  {
-    "id": "deleteBranch",
-    "label": "🗑 Delete Branch",
-    "tooltip": "Git: Delete Branch...",
-    "color": "orange",
-    "command": "workbench.action.git.deleteBranch",
-    "terminal": {
-      "name": "delete-branch",
-      "focus": false,
-      "singleInstance": true
-    }
-  }
-]
+}
