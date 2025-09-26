@@ -1,0 +1,15 @@
+"betterStatusBar.commands": [
+  {
+    "id": "cleanBranches",
+    "label": "🧹 Clean Git Branches",
+    "tooltip": "원격 삭제된 브랜치 정리 + 병합된 로컬 브랜치 삭제",
+    "color": "yellow",
+    "command": "git fetch -p && for /f %i in ('git branch --merged ^| findstr /v \"* main master\"') do git branch -d %i",
+    "terminal": {
+      "name": "branch-clean",
+      "focus": false,
+      "singleInstance": true,
+      "clear": true
+    }
+  }
+]
