@@ -1,12 +1,33 @@
-Command Runner(edonet)으로 사용
-
 {
-  "command-runner.showButton": true,
-  "command-runner.commands": {
-    // 1. 브랜치 삭제 (VS Code 내장 명령 호출)
-    "🗑 Delete Branch": "workbench.action.git.deleteBranch",
+  // Better Status Bar
+  "betterStatusBar.defaultColor": "statusBar.foreground",
+  "betterStatusBar.configurationFile": true,
+  "betterStatusBar.loadNpmCommands": false,
+  "betterStatusBar.reloadButton": "Refresh Status Bar",
 
-    // 2. 병합된 브랜치 정리 + 원격 브랜치 동기화
-    "🧹 Clean Git Branches": "cmd /c \"git fetch -p && for /f %i in ('git branch --merged ^| findstr /v \\\"* main master\\\"') do git branch -d %i\""
-  }
+  "betterStatusBar.commands": [
+    {
+      // 1) 브랜치 삭제 UI 호출 (VS Code 내장 명령 실행)
+      "id": "delete-branch",
+      "label": "🗑 Delete Branch",
+      "tooltip": "Git: Delete Branch...",
+      "color": "orange",
+      "command": "workbench.action.git.deleteBranch",
+      "useVsCodeApi": true
+    },
+    {
+      // 2) 원격 브랜치 프룬 + 병합된 로컬 브랜치 정리 (cmd에서 실행)
+      "id": "clean-branches",
+      "label": "🧹 Clean Branches",
+      "tooltip": "Prune remote & delete merged local branches (keeps main/master)",
+      "color": "yellow",
+      "command": "cmd /c \"git fetch -p && for /f %i in ('git branch --merged ^| findstr /v \\\"* main master\\\"') do git branch -d %i\"",
+      "terminal": {
+        "name": "branch-clean",
+        "focus": false,
+        "singleInstance": true,
+        "clear": false
+      }
+    }
+  ]
 }
