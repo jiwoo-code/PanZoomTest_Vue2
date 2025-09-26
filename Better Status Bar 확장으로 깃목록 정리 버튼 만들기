@@ -12,4 +12,18 @@
       "clear": true
     }
   }
+],
+"betterStatusBar.commands": [
+  {
+    "id": "deleteBranch",
+    "label": "🗑 Delete Branch",
+    "tooltip": "Git: Delete Branch...",
+    "color": "orange",
+    "command": "workbench.action.git.deleteBranch",
+    "terminal": {
+      "name": "delete-branch",
+      "focus": false,
+      "singleInstance": true
+    }
+  }
 ]
