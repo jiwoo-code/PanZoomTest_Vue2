@@ -5,8 +5,6 @@ vscode statusbar commands로 확장 사용
   "statusbarCommands.commands": [
     {
       // 🗑 브랜치 삭제 버튼
-      // - VS Code 내장 명령 실행
-      // - "브랜치 삭제" 메뉴를 띄워 수동으로 브랜치 선택/삭제 가능
       "statusBarText": "🗑 브랜치 삭제",
       "tooltipText": "브랜치 삭제 메뉴 열기",
       "color": "#ffb300",
@@ -14,21 +12,29 @@ vscode statusbar commands로 확장 사용
     },
     {
       // 🧹 브랜치 정리 버튼
-      // 기능 설명:
-      // 1. git fetch -p : 원격에서 삭제된 브랜치 참조를 정리
-      // 2. 모든 로컬 브랜치를 순회
-      //    - main, master, development 브랜치는 항상 보호 (삭제 금지)
-      //    - 해당 브랜치의 원격(origin/브랜치명)이 존재한다면 유지
-      //    - 원격에서 삭제되었고 development에 병합된 경우 → 로컬 삭제
-      //    - 삭제한 브랜치는 "deleted {브랜치명}" 로그로 기록
-      //    - 병합되지 않은 경우 "keeping {브랜치명}" 로그로 기록
+      // - PowerShell 전용 터미널 "branch-clean"에서 실행
+      // - 없으면 새로 열고, 있으면 재사용
+      // - 실행 후 터미널로 포커스 이동
+      // - 동작:
+      //   1. git fetch -p
+      //   2. development에 병합된 로컬 브랜치 중
+      //      - main/master/development 제외
+      //      - 원격에 없는 브랜치만 삭제
+      //   3. 로그: skipping / deleted / keeping 출력
       "statusBarText": "🧹 브랜치 정리",
-      "tooltipText": "원격 삭제 브랜치 제거 + development 병합된 브랜치 삭제 (main/master/development 보호)",
+      "tooltipText": "PowerShell에서 원격 삭제 브랜치 정리 (development 기준, main/master/development 보호)",
       "color": "#c8c800",
       "command": "workbench.action.terminal.sendSequence",
       "args": [
         {
-          "text": "cmd /c \"git fetch -p && for /f %i in ('git for-each-ref --format=%%(refname:short) refs/heads --merged development ^| findstr /I /X /V \\\"main\\\" ^| findstr /I /X /V \\\"master\\\" ^| findstr /I /X /V \\\"development\\\"') do @git rev-parse --verify --quiet refs/remotes/origin/%i >nul || (git branch -d %i && echo deleted %i || echo keeping %i)\"\u000D"
+          "text": "git fetch -p; $branches = git for-each-ref --format='%(refname:short)' refs/heads --merged development; foreach ($b in $branches) { if ($b -in @('main','master','development')) { Write-Output \\\"skipping $b\\\" } elseif (-not (git show-ref --verify --quiet refs/remotes/origin/$b)) { git branch -d $b; Write-Output \\\"deleted $b\\\" } else { Write-Output \\\"keeping $b\\\" } }",
+          "terminal": {
+            "name": "branch-clean",
+            "shellPath": "powershell",
+            "singleInstance": true,
+            "focus": true,   // 👉 실행 후 포커스를 PowerShell 터미널로 이동
+            "clear": false
+          }
         }
       ]
     }
