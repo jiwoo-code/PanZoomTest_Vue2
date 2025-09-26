@@ -5,8 +5,8 @@ vscode statusbar commands로 확장 사용
   "statusbarCommands.commands": [
     {
       // 🗑 브랜치 삭제 버튼
-      // - VS Code 내장 명령 `git.deleteBranch` 실행
-      // - 브랜치 삭제 메뉴 UI를 바로 띄움
+      // - VS Code 내장 명령 실행
+      // - "브랜치 삭제" 메뉴를 띄워 수동으로 브랜치 선택/삭제 가능
       "statusBarText": "🗑 브랜치 삭제",
       "tooltipText": "브랜치 삭제 메뉴 열기",
       "color": "#ffb300",
@@ -14,21 +14,21 @@ vscode statusbar commands로 확장 사용
     },
     {
       // 🧹 브랜치 정리 버튼
-      // 기능 요약:
-      // 1. git fetch -p : 원격에서 삭제된 브랜치 참조(prune) 정리
-      // 2. 로컬 모든 브랜치를 순회
-      //    - main, master, development 브랜치는 절대 삭제하지 않음 (보호)
-      //    - 해당 브랜치의 원격(origin/브랜치명)이 존재한다면 건너뜀
-      //    - 원격에 삭제된 브랜치이고,
-      //      development 브랜치에 병합된 경우만 삭제 (git branch -d)
-      //    - 병합되지 않았다면 "keeping {브랜치명}" 출력 후 남김
+      // 기능 설명:
+      // 1. git fetch -p : 원격에서 삭제된 브랜치 참조를 정리
+      // 2. 모든 로컬 브랜치를 순회
+      //    - main, master, development 브랜치는 항상 보호 (삭제 금지)
+      //    - 해당 브랜치의 원격(origin/브랜치명)이 존재한다면 유지
+      //    - 원격에서 삭제되었고 development에 병합된 경우 → 로컬 삭제
+      //    - 삭제한 브랜치는 "deleted {브랜치명}" 로그로 기록
+      //    - 병합되지 않은 경우 "keeping {브랜치명}" 로그로 기록
       "statusBarText": "🧹 브랜치 정리",
-      "tooltipText": "원격 삭제 브랜치 제거 + development에 병합된 브랜치만 로컬 삭제 (main/master/development 보호)",
+      "tooltipText": "원격 삭제 브랜치 제거 + development 병합된 브랜치 삭제 (main/master/development 보호)",
       "color": "#c8c800",
       "command": "workbench.action.terminal.sendSequence",
       "args": [
         {
-          "text": "cmd /c \"git fetch -p && for /f %i in ('git for-each-ref --format=%(refname:short) refs/heads') do @if /I \\\"%i\\\"==\\\"main\\\" (echo skipping main) else if /I \\\"%i\\\"==\\\"master\\\" (echo skipping master) else if /I \\\"%i\\\"==\\\"development\\\" (echo skipping development) else @(git show-ref --verify --quiet refs/remotes/origin/%i || (git branch --format=%(refname:short) --merged development ^| findstr /I /X \\\"%i\\\" >nul && git branch -d %i || echo keeping %i))\"\u000D"
+          "text": "cmd /c \"git fetch -p && for /f %i in ('git for-each-ref --format=%%(refname:short) refs/heads --merged development ^| findstr /I /X /V \\\"main\\\" ^| findstr /I /X /V \\\"master\\\" ^| findstr /I /X /V \\\"development\\\"') do @git rev-parse --verify --quiet refs/remotes/origin/%i >nul || (git branch -d %i && echo deleted %i || echo keeping %i)\"\u000D"
         }
       ]
     }
