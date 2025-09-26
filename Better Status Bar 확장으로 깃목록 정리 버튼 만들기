@@ -4,19 +4,19 @@ vscode statusbar commands로 확장 사용
   "statusbarCommands.alignment": "Right",
   "statusbarCommands.commands": [
     {
-      "statusBarText": "🗑 Delete Branch",
-      "tooltipText": "Git: Delete Branch…",
+      "statusBarText": "🗑 브랜치 삭제",
+      "tooltipText": "브랜치 삭제 메뉴 열기",
       "color": "#ffb300",
       "command": "git.deleteBranch"
     },
     {
-      "statusBarText": "🧹 Clean Branches",
-      "tooltipText": "Prune remote & delete merged local branches",
+      "statusBarText": "🧹 브랜치 정리",
+      "tooltipText": "원격 브랜치 프룬 + 병합된 로컬 브랜치 삭제 (main/master 제외)",
       "color": "#c8c800",
       "command": "workbench.action.terminal.sendSequence",
       "args": [
         {
-          "text": "cmd /c \"git fetch -p && for /f %i in ('git branch --merged ^| findstr /v \\\"* main master\\\"') do git branch -d %i\"\\r"
+          "text": "cmd /c \"git fetch -p && for /f %i in ('git for-each-ref --format=\\\"%(refname:short)\\\" refs/heads --merged ^| findstr /I /V ^\\\"main$^\\\" ^| findstr /I /V ^\\\"master$^\\\"') do git branch -d %i\"\u000D"
         }
       ]
     }
