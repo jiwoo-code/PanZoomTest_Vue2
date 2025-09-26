@@ -22,14 +22,14 @@ vscode statusbar commands로 확장 사용
       //   4. 원격에 없는 브랜치만 삭제
       //   5. 로그로 skipping / deleted / keeping 출력
       "statusBarText": "🧹 브랜치 정리",
-      "tooltipText": "PowerShell 호출로 브랜치 정리 실행 (development 기준, main/master/development 보호)",
-      "color": "#c8c800",
-      "command": "workbench.action.terminal.sendSequence",
-      "args": [
-        {
-          "text": "powershell -Command \"git fetch -p; $branches = git for-each-ref --format='%(refname:short)' refs/heads --merged development; foreach ($b in $branches) { if ($b -in @('main','master','development')) { Write-Output ('skipping ' + $b) } elseif (-not (git show-ref --verify --quiet refs/remotes/origin/$b)) { git branch -d $b; Write-Output ('deleted ' + $b) } else { Write-Output ('keeping ' + $b) } } }\"\u000D"
-        }
-      ]
+  "tooltipText": "PowerShell로 브랜치 정리 실행 (development 기준, main/master/development 보호)",
+  "color": "#c8c800",
+  "command": "workbench.action.terminal.sendSequence",
+  "args": [
+    {
+      "text": "powershell -NoProfile -Command \"git fetch -p; $branches = git for-each-ref --format='%(refname:short)' refs/heads --merged development; foreach ($b in $branches) { if ($b -in @('main','master','development')) { Write-Output \\\"skipping $b\\\" } else { git show-ref --verify --quiet \\\"refs/remotes/origin/$b\\\"; if ($LASTEXITCODE -ne 0) { git branch -d $b; if ($LASTEXITCODE -eq 0) { Write-Output \\\"deleted $b\\\" } else { Write-Output \\\"keeping $b\\\" } } else { Write-Output \\\"keeping $b\\\" } } }\"\u000D"
+    }
+  ]
     }
   ]
 }
