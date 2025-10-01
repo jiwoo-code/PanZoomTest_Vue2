@@ -228,4 +228,38 @@ Xml
 확장 용이: 나중에 MyBatis 매퍼·배치·큐(Kafka/Rabbit) 붙일 때도 같은 경로에 자연스럽게 확장
 운영 편의: 로그/설정/보안 정책을 모듈 단위로 분리 가능
 원하면 tracking 대신 analytics나 metrics 네이밍도 좋아요.
-컨벤션만 정해주시면 거기에 맞춰 파일 경로/패키지명 바꿔 드릴게요. 😊
+컨벤션만 정해주시면 거기에 맞춰 파일 경로/패키지명 바꿔 드릴게요. 
+
+
+
+
+package com.example.app.tracking.service;
+
+import com.example.app.tracking.dto.PageViewDto;
+import org.springframework.stereotype.Service;
+
+@Service
+public class TrackingService {
+
+    public void logPageView(PageViewDto d) {
+        // 한 줄 JSON 문자열 출력
+        System.out.println(
+          String.format(
+            "{\"path\":\"%s\",\"name\":\"%s\",\"referrerPath\":\"%s\",\"tsClient\":\"%s\"," +
+            "\"appVersion\":\"%s\",\"userId\":\"%s\",\"sessionId\":\"%s\",\"locale\":\"%s\"," +
+            "\"userAgent\":\"%s\",\"clientIp\":\"%s\",\"tsServer\":\"%s\"}",
+            safe(d.getPath()), safe(d.getName()), safe(d.getReferrerPath()), safe(d.getTsClient()),
+            safe(d.getAppVersion()), safe(d.getUserId()), safe(d.getSessionId()), safe(d.getLocale()),
+            safe(d.getUserAgent()), safe(d.getClientIp()), safe(d.getTsServer())
+          )
+        );
+    }
+
+    private String safe(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", " ")
+                .replace("\r", " ");
+    }
+}
