@@ -65,45 +65,63 @@ router.afterEach((to, from) => {
 
 export default router;
 포인트: afterEach는 라우팅이 “실제 완료된 뒤”만 실행되므로 카운트 정확도가 높습니다.
-2) 백엔드(Spring) — DB 없이 로그만 남기기
-아래는 Spring MVC(부트) 기준. 수집 컨트롤러에서 받아서 SLF4J(Logback) 로그로 남깁니다.
-운영에서 파일로 굴려보려면 logback 설정을 추가해 tracking.log로 분리하는 것도 함께 예시를 드립니다.
-2-1) DTO
-PageViewDto.java
+
+
+
+지금처럼 auth, common만 있다면 추적 전용 패키지/모듈을 따로 파는 게 제일 깔끔합니다.
+common에 우겨넣으면 “공통”이 점점 비대해지고 경계가 흐려져요. 이벤트/로그는 별 경계로 두는 게 나중에 DB 도입·큐 연동할 때도 편합니다.
+추천 구조 (패키지 & 파일 위치)
+코드 복사
+
+com.example.app
+ ├─ auth
+ ├─ common
+ └─ tracking                 // ★ 새로 생성 (또는 analytics)
+     ├─ dto
+     │   └─ PageViewDto.java
+     ├─ web
+     │   └─ TrackingController.java
+     ├─ service
+     │   └─ TrackingService.java         // 지금은 로그만 남기지만 확장 대비
+     ├─ mapper                           // MyBatis 도입 시
+     │   ├─ PageViewMapper.java
+     │   └─ PageViewMapper.xml           // resources/mappers/PageViewMapper.xml
+     └─ config
+         └─ TrackingSecurityConfig.java  // (선택) /api/track/** permitAll & CSRF 예외
+엔드포인트 경로: /api/track/pageview (tracking 전용 prefix 유지)
+보안: Spring Security 사용 시 /api/track/**는 permitAll + csrf().ignoringAntMatchers(...) 권장
+로그 라우팅: logback-spring.xml에서 logger name="TRACKING_LOG"로 분리(선택)
+코드 스켈레톤
+DTO
 코드 복사
 Java
-// imports
-package com.example.tracking.dto;
+package com.example.app.tracking.dto;
 
 import lombok.Data;
 
 @Data
 public class PageViewDto {
-    // --- 프론트에서 수집 ---
     private String path;
     private String name;
     private String referrerPath;
-    private String tsClient;    // ISO8601
+    private String tsClient;
     private String appVersion;
-    private String userId;      // 내부식별자(PII 지양)
+    private String userId;
     private String sessionId;
     private String locale;
 
-    // --- 서버에서 보강 ---
+    // 서버 보강
     private String userAgent;
     private String clientIp;
-    private String tsServer;    // ISO8601
+    private String tsServer;
 }
-2-2) Controller (로그 적재)
-TrackingController.java
+Controller (로그만 기록)
 코드 복사
 Java
-// imports
-package com.example.tracking.web;
+package com.example.app.tracking.web;
 
-import com.example.tracking.dto.PageViewDto;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.example.app.tracking.dto.PageViewDto;
+import com.example.app.tracking.service.TrackingService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -114,115 +132,100 @@ import java.time.OffsetDateTime;
 @RequestMapping("/api/track")
 public class TrackingController {
 
-    private static final Logger log = LoggerFactory.getLogger("TRACKING_LOG"); 
-    // 별도 로거명으로 분리 → logback에서 별도 파일로 라우팅 가능
+    private final TrackingService trackingService;
+
+    public TrackingController(TrackingService trackingService) {
+        this.trackingService = trackingService;
+    }
 
     @PostMapping("/pageview")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public void pageview(@RequestBody PageViewDto dto, HttpServletRequest req) {
-        // 서버 보강 필드
         dto.setUserAgent(req.getHeader("User-Agent"));
         dto.setClientIp(resolveClientIp(req));
         dto.setTsServer(OffsetDateTime.now().toString());
-
-        // JSON 한 줄 로그 (분석/파싱 용이)
-        // 운영에선 쿼리스트링/개인정보가 포함되지 않도록 반드시 프론트/서버에서 화이트리스트 정책 권장
-        log.info("pageview {}", toLine(dto));
+        trackingService.logPageView(dto); // 지금은 파일/콘솔 로그
     }
 
     private String resolveClientIp(HttpServletRequest req) {
         String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isEmpty()) {
-            // 첫번째가 실제 클라이언트 IP
-            return xff.split(",")[0].trim();
-        }
+        if (xff != null && !xff.isEmpty()) return xff.split(",")[0].trim();
         return req.getRemoteAddr();
     }
+}
+Service (지금은 로그, 나중엔 DB/큐로 교체)
+코드 복사
+Java
+package com.example.app.tracking.service;
 
-    private String toLine(PageViewDto d) {
-        // 간단한 JSON 라인 (라이브러리 없이 가볍게)
-        // 필요 시 Jackson ObjectMapper로 직렬화해도 됩니다.
-        return String.format(
-            "{\"path\":\"%s\",\"name\":\"%s\",\"referrerPath\":\"%s\",\"tsClient\":\"%s\"," +
-            "\"appVersion\":\"%s\",\"userId\":\"%s\",\"sessionId\":\"%s\",\"locale\":\"%s\"," +
-            "\"userAgent\":\"%s\",\"clientIp\":\"%s\",\"tsServer\":\"%s\"}",
-            safe(d.getPath()), safe(d.getName()), safe(d.getReferrerPath()), safe(d.getTsClient()),
-            safe(d.getAppVersion()), safe(d.getUserId()), safe(d.getSessionId()), safe(d.getLocale()),
-            safe(d.getUserAgent()), safe(d.getClientIp()), safe(d.getTsServer())
+import com.example.app.tracking.dto.PageViewDto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+@Service
+public class TrackingService {
+    private static final Logger log = LoggerFactory.getLogger("TRACKING_LOG");
+
+    public void logPageView(PageViewDto d) {
+        // 한 줄 JSON (간단 직렬화)
+        log.info(
+          "{\"path\":\"{}\",\"name\":\"{}\",\"referrerPath\":\"{}\",\"tsClient\":\"{}\"," +
+          "\"appVersion\":\"{}\",\"userId\":\"{}\",\"sessionId\":\"{}\",\"locale\":\"{}\"," +
+          "\"userAgent\":\"{}\",\"clientIp\":\"{}\",\"tsServer\":\"{}\"}",
+          safe(d.getPath()), safe(d.getName()), safe(d.getReferrerPath()), safe(d.getTsClient()),
+          safe(d.getAppVersion()), safe(d.getUserId()), safe(d.getSessionId()), safe(d.getLocale()),
+          safe(d.getUserAgent()), safe(d.getClientIp()), safe(d.getTsServer())
         );
     }
 
     private String safe(String s) {
         if (s == null) return "";
-        // 줄바꿈/따옴표 최소 이스케이프
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ").replace("\r", " ");
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n"," ").replace("\r"," ");
     }
 }
-반환은 202 Accepted로 비동기/베스트에포트 느낌을 주고, 실패해도 UX에 영향 없게 합니다.
-2-3) (선택) Spring Security 사용 시 허용 설정
-Spring Security를 쓰고 있고 인증이 필요한 앱이라면, 추적 엔드포인트는 permitAll로 열어두는 편이 일반적입니다.
-SecurityConfig.java (Spring Security 5.x 예)
+(선택) Security 설정
 코드 복사
 Java
-// imports
+package com.example.app.tracking.config;
+
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 
 @Configuration
 @SuppressWarnings("deprecation")
-public class SecurityConfig extends WebSecurityConfigurerAdapter {
+public class TrackingSecurityConfig extends WebSecurityConfigurerAdapter {
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http
-          .csrf().ignoringAntMatchers("/api/track/**").and() // CSRF 보호가 필요 없다면 무시
+          .csrf().ignoringAntMatchers("/api/track/**").and()
           .authorizeRequests()
             .antMatchers("/api/track/**").permitAll()
             .anyRequest().authenticated();
     }
 }
-CSRF를 엄격히 켠 상태라면, sendBeacon + POST 전송이 차단될 수 있어 /api/track/**는 CSRF 제외하거나 GET + 쿼리스트링으로 바꿔야 합니다(개인정보/길이 이슈 주의). 개인적으로는 CSRF 제외 + JSON POST를 권장합니다.
-2-4) (선택) Logback으로 파일 분리(롤링)
-src/main/resources/logback-spring.xml (필요시에만 추가)
+(선택) logback 분리
+src/main/resources/logback-spring.xml
 코드 복사
 Xml
 <configuration>
-  <!-- 기본 콘솔 Appender -->
-  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-    <encoder>
-      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger - %msg%n</pattern>
-    </encoder>
-  </appender>
-
-  <!-- TRACKING 전용 롤링 파일 -->
   <appender name="TRACKING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
     <file>logs/tracking.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
       <fileNamePattern>logs/tracking.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
       <maxHistory>14</maxHistory>
     </rollingPolicy>
-    <encoder>
-      <pattern>%msg%n</pattern> <!-- 한 줄 JSON만 -->
-    </encoder>
+    <encoder><pattern>%msg%n</pattern></encoder>
   </appender>
 
-  <!-- 애플리케이션 기본 로거 -->
-  <root level="INFO">
-    <appender-ref ref="STDOUT"/>
-  </root>
-
-  <!-- TRACKING 전용 로거: TrackingController에서 사용한 이름 -->
   <logger name="TRACKING_LOG" level="INFO" additivity="false">
     <appender-ref ref="TRACKING_FILE"/>
-    <appender-ref ref="STDOUT"/>
   </logger>
 </configuration>
-결과: logs/tracking.log에 한 줄 JSON로 축적되어, 나중에 DB가 정해지면 쉽게 적재/파싱할 수 있습니다.
-3) 빠른 점검(체크리스트)
-[ ] 프론트 router.afterEach에서 /api/track/pageview로 전송되는지
-[ ] 서버에서 202 응답, 콘솔/파일에 pageview {...} 라인이 찍히는지
-[ ] 보안: /api/track/** CSRF/인증 정책 확인
-[ ] 개인정보 과수집 금지(사용자 식별자는 내부 ID만, 쿼리스트링/파라미터는 화이트리스트)
-[ ] 트래픽 커지면 나중에 큐(@Async/메시지큐) 도입 + DB 스키마 설계
-원하면 여기서 체류시간(enter/leave) 계산, 세션당 1회 제한, 특정 라우트만 카운트(meta.track), 로봇 필터링 규칙까지 바로 얹어 드릴게요.
-“라우팅은 정확하게, 개인정보는 최소로” — 이 원칙만 지키면 깔끔하게 굴러갑니다. 😊
+왜 별도 tracking 패키지가 좋은가?
+경계 명확: auth(인증), common(유틸)와 독립 → 의존 역전/스파게티 방지
+확장 용이: 나중에 MyBatis 매퍼·배치·큐(Kafka/Rabbit) 붙일 때도 같은 경로에 자연스럽게 확장
+운영 편의: 로그/설정/보안 정책을 모듈 단위로 분리 가능
+원하면 tracking 대신 analytics나 metrics 네이밍도 좋아요.
+컨벤션만 정해주시면 거기에 맞춰 파일 경로/패키지명 바꿔 드릴게요. 😊
