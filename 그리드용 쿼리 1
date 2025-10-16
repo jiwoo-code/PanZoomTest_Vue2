@@ -1,0 +1,52 @@
+-- 예: 원본 테이블명: metrics (col: dt::date, eqp_id, name, sec::numeric)
+WITH base AS (
+  SELECT
+    dt::date AS d,
+    eqp_id,
+    name,
+    sec::numeric AS sec
+  FROM metrics
+  -- 필요하면 기간/설비 필터
+  -- WHERE eqp_id = 'eqp01' AND dt BETWEEN DATE '2025-10-07' AND DATE '2025-10-13'
+),
+-- 요일 텍스트는 name 컬럼의 요일행에서 안전하게 뽑습니다(LC_TIME 영향 없음)
+dow AS (
+  SELECT d, eqp_id, name AS d_of_w
+  FROM base
+  WHERE name IN ('monday','tuesday','wednesday','thursday','friday','saturday','sunday')
+),
+agg AS (
+  SELECT
+    d,
+    eqp_id,
+    COUNT(*) FILTER (WHERE name = 'daily')                                           AS daily_cnt,
+    ROUND(SUM(sec) FILTER (WHERE name = 'daily')::numeric, 3)                        AS daily_sec,
+    COUNT(*) FILTER (WHERE name IN ('monday','tuesday','wednesday','thursday',
+                                    'friday','saturday','sunday'))                   AS day_cnt,
+    ROUND(SUM(sec) FILTER (WHERE name IN ('monday','tuesday','wednesday','thursday',
+                                          'friday','saturday','sunday'))::numeric,3) AS day_sec,
+    COUNT(*) FILTER (WHERE name = 'weekly')                                          AS weekly_cnt,
+    ROUND(SUM(sec) FILTER (WHERE name = 'weekly')::numeric, 3)                       AS weekly_sec,
+    COUNT(*)                                                                          AS total_cnt,
+    ROUND(SUM(sec)::numeric, 3)                                                      AS total_sec
+  FROM base
+  GROUP BY d, eqp_id
+)
+SELECT
+  a.d                                AS "date",
+  COALESCE(dw.d_of_w, LOWER(TO_CHAR(a.d, 'FMday'))) AS "d-of-w",  -- 요일행이 없을 때만 보조로 생성
+  a.daily_cnt                        AS "daily cnt",
+  -- 출력 서식을 깔끔히 하고 싶으면 아래처럼 to_char 사용 (뒤 0 제거)
+  TO_CHAR(a.daily_sec,  'FM999990.###')   AS "daily sec",
+  a.day_cnt                          AS "day cnt",
+  TO_CHAR(a.day_sec,    'FM999990.###')   AS "day sec",
+  a.weekly_cnt                       AS "weekly cnt",
+  TO_CHAR(a.weekly_sec, 'FM999990.###')   AS "weekly sec",
+  a.total_cnt                        AS "total cnt",
+  TO_CHAR(a.total_sec,  'FM999990.###')   AS "total sec"
+FROM agg a
+LEFT JOIN dow dw
+  ON dw.d = a.d AND dw.eqp_id = a.eqp_id
+-- 필요 시 특정 설비만
+-- WHERE a.eqp_id = 'eqp01'
+ORDER BY a.d, a.eqp_id;
