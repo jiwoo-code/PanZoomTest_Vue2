@@ -592,3 +592,64 @@ export default {
     justify-content: flex-start;
 }
 </style>
+
+
+
+
+
+/**
+ * 외부에서 호출: sec/cnt 계열 컬럼만 표시 제어
+ * @param {string[]} metricList - 예) ['dailySec','totalCnt'] (카멜케이스)
+ *
+ * 동작:
+ *  - date, d_of_w는 영향 없음
+ *  - 각 eqp 그룹의 'dailySec','totalCnt' 같은 카멜케이스 메트릭만 대상
+ *  - 전달받지 않은 sec/cnt 컬럼은 전부 숨김
+ *  - '-' 더미(접힘 표시) 및 비-숫자 필드는 그대로 유지
+ *
+ * 사용 예:
+ *  this.$refs.eqpGrid.selectedCols(['dailySec','weeklySec']);
+ */
+selectedCols(metricList) {
+    const api = this.columnApi || (this.$refs && this.$refs.agGrid && this.$refs.agGrid.columnApi);
+    if (!api) return;
+
+    // sec/cnt만 대상으로 삼는다 (카멜케이스 접미어)
+    const isTargetMetric = (m) => /(?:Cnt|Sec)$/.test(m);
+
+    // 유효한 대상만 Set으로 정규화
+    const selected = new Set((metricList || []).filter(isTargetMetric));
+
+    // columnDefs에서 eqp 그룹(children)의 대상 컬럼 colId를 수집
+    const allTargetColIds = [];
+    const toShowColIds = [];
+
+    for (const group of this.columnDefs) {
+        if (!group || !group.groupId || !Array.isArray(group.children)) continue; // eqp 그룹만
+        const eqp = group.groupId;
+
+        for (const child of group.children) {
+            // child.colId 형식: `${eqp}.${metricKey}`
+            if (!child || !child.colId || !child.colId.startsWith(eqp + '.')) continue;
+            // 접힘 더미 '-' 제외
+            if (child.columnGroupShow === 'closed') continue;
+
+            const metricKey = child.colId.slice(eqp.length + 1); // eqp. 이후 추출
+            if (!isTargetMetric(metricKey)) continue; // sec/cnt만 대상
+
+            allTargetColIds.push(child.colId);
+            if (selected.has(metricKey)) {
+                toShowColIds.push(child.colId);
+            }
+        }
+    }
+
+    // 1) 모든 대상(sec/cnt) 컬럼 숨김
+    if (allTargetColIds.length) {
+        api.setColumnsVisible(allTargetColIds, false);
+    }
+    // 2) 선택된 것만 보이기
+    if (toShowColIds.length) {
+        api.setColumnsVisible(toShowColIds, true);
+    }
+}
