@@ -623,3 +623,38 @@ selectedCols(selectedCols) {
     this.columnApi.refreshHeader();
     this.gridApi?.refreshCells({ force: true });
 }
+
+
+
+
+
+
+/**
+ * selectedCols: 전달된 메트릭(...Sec / ...Cnt)만 보이고 나머지는 숨김
+ * - date, d_of_w, '-', 기타는 건드리지 않음
+ * - 공식 API(applyColumnState)로 적용 → 헤더/바디 즉시 반영
+ * 사용: this.selectedCols(['dailySec','totalCnt'])
+ */
+selectedCols(selected) {
+    const columnApi = this.columnApi || this.$refs.grid?.columnApi;
+    if (!columnApi) return;
+
+    const want = new Set(selected || []);
+    const state = [];
+
+    // 모든 컬럼을 훑어서 `${eqp}.${metric}` 형태만 대상 처리
+    for (const col of columnApi.getAllColumns() || []) {
+        const colId = col.getColId?.() || col.colId || '';
+        const dot = colId.indexOf('.');
+        if (dot < 0) continue;                     // date, d_of_w, 그룹 더미 등은 패스
+
+        const metric = colId.slice(dot + 1);       // eqp 뒤의 메트릭명
+        // metricsOpen에 있고, Sec/Cnt로 끝나는 것만 대상
+        if (!this.metricsOpen.includes(metric)) continue;
+        if (!(metric.endsWith('Sec') || metric.endsWith('Cnt'))) continue;
+
+        state.push({ colId, hide: !want.has(metric) });
+    }
+
+    columnApi.applyColumnState({ state, applyOrder: false });
+}
