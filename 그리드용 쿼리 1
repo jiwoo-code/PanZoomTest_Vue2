@@ -448,4 +448,147 @@ export default {
 ✅ 모든 파일이 4칸 들여쓰기 일관
 ✅ SQL 반올림 완료, Java는 그룹핑만
 ✅ Vue는 동적 컬럼 자동 확장
-필요하시면 이 구조를 바로 IntelliJ나 VSCode 프로젝트에 넣을 수 있게 src/main/java + src/main/resources/mapper + frontend/src/components 폴더 구조 형태로 정리해드릴 수도 있어요. 원하시나요?
+
+
+
+
+<template>
+    <ag-grid-vue
+        class="ag-theme-alpine"
+        :columnDefs="columnDefs"
+        :rowData="rowData"
+        :defaultColDef="defaultColDef"
+        :domLayout="'autoHeight'"
+        @grid-ready="onGridReady"
+    />
+</template>
+
+<script>
+import axios from 'axios'
+import { AgGridVue } from 'ag-grid-vue'
+
+export default {
+    name: 'EqpPivotGrid',
+    components: { AgGridVue },
+    data() {
+        return {
+            columnDefs: [],
+            rowData: [],
+            defaultColDef: {
+                sortable: true,
+                resizable: true,
+                filter: true,
+                headerClass: 'left-header'   // 모든 헤더 좌측 정렬
+            },
+            // 펼침 상태에서 보여줄 메트릭 (접힘 상태는 '-'만)
+            metricsOpen: [
+                'daily_cnt','daily_sec',
+                'day_cnt','day_sec',
+                'weekly_cnt','weekly_sec',
+                'total_cnt','total_sec'
+            ]
+        }
+    },
+    created() {
+        this.fetchData()
+    },
+    methods: {
+        async fetchData() {
+            const params = { startDate: '2025-10-07', endDate: '2025-10-13' }
+            const { data } = await axios.get('/api/metrics/pivot', { params })
+            this.rowData = data
+
+            // 모든 행에서 eqp 목록 추출
+            const eqpList = Array.from(
+                new Set(
+                    data.flatMap(r => Object.keys(r.by_eqp || {}))
+                )
+            ).sort()
+
+            this.columnDefs = this.buildColumnDefs(eqpList)
+        },
+
+        // 헤더 라벨 간단 포맷
+        label(m) { return m.replace('_', ' ') },
+
+        // sec/cnt 값은 오른쪽 정렬
+        cellAlign(m) {
+            return (m.endsWith('_sec') || m.endsWith('_cnt')) ? 'ag-right-aligned' : undefined
+        },
+
+        // 그룹 접힘/펼침 UI 포함 컬럼 정의
+        buildColumnDefs(eqpList) {
+            const cols = [
+                { headerName: 'date', field: 'date', pinned: 'left' },
+                { headerName: 'd_of_w', field: 'd_of_w', pinned: 'left' }
+            ]
+
+            for (const eqp of eqpList) {
+                const children = []
+
+                // 1) 접힘 상태 전용 더미 컬럼: "-" (접히면 이것만 보임)
+                children.push({
+                    headerName: '-',
+                    colId: `${eqp}.__collapsed__`,
+                    columnGroupShow: 'closed',
+                    width: 40,
+                    minWidth: 40,
+                    maxWidth: 60,
+                    suppressMenu: true,
+                    sortable: false,
+                    resizable: false,
+                    filter: false,
+                    valueGetter: () => null
+                })
+
+                // 2) 펼침 상태: 실제 메트릭 컬럼들
+                for (const m of this.metricsOpen) {
+                    children.push({
+                        headerName: this.label(m),
+                        colId: `${eqp}.${m}`,
+                        columnGroupShow: 'open',
+                        valueGetter: p => p.data?.by_eqp?.[eqp]?.[m] ?? null,
+                        type: m.endsWith('_sec') ? 'numericColumn' : undefined,
+                        cellClass: this.cellAlign(m),
+                        valueFormatter: p => {
+                            const v = p.value
+                            if (v == null) return ''
+                            return m.endsWith('_sec') ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 3 }) : v
+                        }
+                    })
+                }
+
+                cols.push({
+                    headerName: eqp,
+                    groupId: eqp,          // 초기 접힘/펼침 제어용
+                    marryChildren: true,
+                    children
+                })
+            }
+
+            return cols
+        },
+
+        // 초기엔 모두 접힘 상태로 시작 (원하면 open:true로 바꿔도 됨)
+        onGridReady(params) {
+            this.gridApi = params.api
+            this.columnApi = params.columnApi
+            const states = this.columnDefs
+                .filter(c => c.groupId)
+                .map(c => ({ groupId: c.groupId, open: false }))
+            if (states.length) this.columnApi.setColumnGroupState(states)
+        },
+
+        // (옵션) 전체 펼침/접힘 버튼용
+        expandAll() { this.columnApi.setColumnGroupState([{ groupId: null, open: true }]) },
+        collapseAll() { this.columnApi.setColumnGroupState([{ groupId: null, open: false }]) }
+    }
+}
+</script>
+
+<style>
+/* 헤더 텍스트 좌측 정렬 (값은 개별 cellClass로 우측 정렬) */
+.ag-theme-alpine .left-header .ag-header-cell-label {
+    justify-content: flex-start;
+}
+</style>
