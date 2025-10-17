@@ -50,3 +50,73 @@ LEFT JOIN dow dw
 -- 필요 시 특정 설비만
 -- WHERE a.eqp_id = 'eqp01'
 ORDER BY a.d, a.eqp_id;
+
+
+
+
+
+
+
+
+
+
+WITH base AS (
+  SELECT
+    dt::date AS d,
+    eqp_id,
+    name,
+    sec::numeric AS sec_num,
+    split_part(name, '_', 1) AS name_core  -- 예: Monday_ddd → Monday
+  FROM metrics
+),
+norm AS (
+  SELECT
+    d,
+    eqp_id,
+    sec_num,
+    CASE
+      WHEN name_core IN ('Daily', 'Weekly') THEN name_core
+      WHEN name_core IN ('Monday','Tuesday','Wednesday','Thursday',
+                         'Friday','Saturday','Sunday') THEN 'Weekday'
+      ELSE 'Other'
+    END AS kind,
+    CASE
+      WHEN name_core IN ('Monday','Tuesday','Wednesday','Thursday',
+                         'Friday','Saturday','Sunday') THEN name_core
+      ELSE NULL
+    END AS weekday_label
+  FROM base
+),
+agg AS (
+  SELECT
+    d,
+    eqp_id,
+    COUNT(*) AS total_cnt,
+    COALESCE(SUM(sec_num), 0) AS total_sec,
+
+    COUNT(*) FILTER (WHERE kind = 'Daily') AS daily_cnt,
+    COALESCE(SUM(sec_num) FILTER (WHERE kind = 'Daily'), 0) AS daily_sec,
+
+    COUNT(*) FILTER (WHERE kind = 'Weekday') AS day_cnt,
+    COALESCE(SUM(sec_num) FILTER (WHERE kind = 'Weekday'), 0) AS day_sec,
+
+    COUNT(*) FILTER (WHERE kind = 'Weekly') AS weekly_cnt,
+    COALESCE(SUM(sec_num) FILTER (WHERE kind = 'Weekly'), 0) AS weekly_sec,
+
+    MAX(weekday_label) FILTER (WHERE kind = 'Weekday') AS d_of_w
+  FROM norm
+  GROUP BY d, eqp_id
+)
+SELECT
+  a.d AS "date",
+  a.d_of_w AS "d-of-w",
+  a.daily_cnt AS "daily cnt",
+  ROUND(a.daily_sec, 3) AS "daily sec",
+  a.day_cnt AS "day cnt",
+  ROUND(a.day_sec, 3) AS "day sec",
+  a.weekly_cnt AS "weekly cnt",
+  ROUND(a.weekly_sec, 3) AS "weekly sec",
+  a.total_cnt AS "total cnt",
+  ROUND(a.total_sec, 3) AS "total sec"
+FROM agg a
+ORDER BY a.d, a.eqp_id;
