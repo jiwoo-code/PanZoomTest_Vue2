@@ -65,98 +65,387 @@ ORDER BY a.d, a.eqp_id;
 
 
 
-Java: 행→피벗(JSON) — 계산 없음, 그룹핑만
+🧩 1) MyBatis Mapper XML (metrics-mapper.xml)
+코드 복사
+Xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.metrics.MetricsMapper">
+
+    <resultMap id="RowEntityMap" type="com.example.metrics.dto.RowEntity">
+        <result column="date"         property="date"/>
+        <result column="d_of_w"       property="dOfW"/>
+        <result column="eqp_id"       property="eqpId"/>
+
+        <result column="daily_cnt"    property="dailyCnt"/>
+        <result column="daily_sec"    property="dailySec"/>
+
+        <result column="day_cnt"      property="dayCnt"/>
+        <result column="day_sec"      property="daySec"/>
+
+        <result column="weekly_cnt"   property="weeklyCnt"/>
+        <result column="weekly_sec"   property="weeklySec"/>
+
+        <result column="total_cnt"    property="totalCnt"/>
+        <result column="total_sec"    property="totalSec"/>
+    </resultMap>
+
+    <select id="selectMetricsRows" resultMap="RowEntityMap">
+        WITH base AS (
+            SELECT
+                dt::date AS d,
+                eqp_id,
+                name,
+                sec::numeric AS sec_num,
+                split_part(name, '_', 1) AS name_core
+            FROM metric
+            WHERE dt BETWEEN #{startDate} AND #{endDate}
+            <if test="eqpIds != null and eqpIds.size() > 0">
+                AND eqp_id IN
+                <foreach collection="eqpIds" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+        ),
+        norm AS (
+            SELECT
+                d,
+                eqp_id,
+                sec_num,
+                CASE
+                    WHEN name_core IN ('Daily', 'Weekly') THEN name_core
+                    WHEN name_core IN ('Monday','Tuesday','Wednesday','Thursday',
+                                       'Friday','Saturday','Sunday') THEN 'Weekday'
+                END AS kind,
+                CASE
+                    WHEN name_core IN ('Monday','Tuesday','Wednesday','Thursday',
+                                       'Friday','Saturday','Sunday') THEN name_core
+                END AS weekday_label
+            FROM base
+        ),
+        agg AS (
+            SELECT
+                d,
+                eqp_id,
+                COUNT(*) AS total_cnt,
+                COALESCE(SUM(sec_num), 0) AS total_sec,
+
+                COUNT(*) FILTER (WHERE kind = 'Daily') AS daily_cnt,
+                COALESCE(SUM(sec_num) FILTER (WHERE kind = 'Daily'), 0) AS daily_sec,
+
+                COUNT(*) FILTER (WHERE kind = 'Weekday') AS day_cnt,
+                COALESCE(SUM(sec_num) FILTER (WHERE kind = 'Weekday'), 0) AS day_sec,
+
+                COUNT(*) FILTER (WHERE kind = 'Weekly') AS weekly_cnt,
+                COALESCE(SUM(sec_num) FILTER (WHERE kind = 'Weekly'), 0) AS weekly_sec,
+
+                MAX(weekday_label) FILTER (WHERE kind = 'Weekday') AS d_of_w
+            FROM norm
+            GROUP BY d, eqp_id
+        )
+        SELECT
+            a.d AS "date",
+            a.d_of_w AS "d_of_w",
+            a.eqp_id AS "eqp_id",
+            a.daily_cnt AS "daily_cnt",
+            ROUND(a.daily_sec, 3)  AS "daily_sec",
+            a.day_cnt AS "day_cnt",
+            ROUND(a.day_sec, 3)    AS "day_sec",
+            a.weekly_cnt AS "weekly_cnt",
+            ROUND(a.weekly_sec, 3) AS "weekly_sec",
+            a.total_cnt AS "total_cnt",
+            ROUND(a.total_sec, 3)  AS "total_sec"
+        FROM agg a
+        ORDER BY a.d, a.eqp_id
+    </select>
+
+</mapper>
+🧩 2) Mapper 인터페이스
 코드 복사
 Java
-// imports
+package com.example.metrics;
+
 import java.time.LocalDate;
-import java.math.BigDecimal;
-import java.util.*;
+import java.util.List;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import com.example.metrics.dto.RowEntity;
 
-// 쿼리 결과를 받는 DTO (이미 쓰시는 resultMap 그대로)
-public class RowEntity {
-  private LocalDate date;
-  private String dOfW;
-  private String eqpId;
-  private Integer dailyCnt;
-  private BigDecimal dailySec;
-  private Integer dayCnt;
-  private BigDecimal daySec;
-  private Integer weeklyCnt;
-  private BigDecimal weeklySec;
-  private Integer totalCnt;
-  private BigDecimal totalSec;
-  // getter/setter...
+@Mapper
+public interface MetricsMapper {
+    List<RowEntity> selectMetricsRows(
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate,
+        @Param("eqpIds") List<String> eqpIds
+    );
 }
+🧩 3) DTO (RowEntity.java)
+코드 복사
+Java
+package com.example.metrics.dto;
 
-public class PivotBuilder {
+import java.time.LocalDate;
 
-  @SuppressWarnings("unchecked")
-  public static List<Map<String, Object>> toPivot(List<RowEntity> rows) {
-    // 날짜 순서 유지
-    Map<LocalDate, Map<String, Object>> byDate = new LinkedHashMap<>();
+public class RowEntity {
+    private LocalDate date;
+    private String dOfW;
+    private String eqpId;
 
-    for (RowEntity r : rows) {
-      // 날짜별 1행 생성
-      Map<String, Object> row = byDate.computeIfAbsent(r.getDate(), d -> {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("date", d);
-        m.put("d_of_w", r.getDOfW());   // 같은 날짜면 동일하다고 가정
-        m.put("by_eqp", new TreeMap<String, Map<String, Object>>()); // eqp 정렬 원하면 TreeMap
-        return m;
-      });
+    private Integer dailyCnt;
+    private Double  dailySec;
 
-      // by_eqp에 eqp별 메트릭 넣기 (추가 계산 X)
-      Map<String, Map<String, Object>> byEqp = (Map<String, Map<String, Object>>) row.get("by_eqp");
-      Map<String, Object> metrics = new LinkedHashMap<>(8);
-      metrics.put("daily_cnt",  nvl(r.getDailyCnt()));
-      metrics.put("daily_sec",  r.getDailySec());
-      metrics.put("day_cnt",    nvl(r.getDayCnt()));
-      metrics.put("day_sec",    r.getDaySec());
-      metrics.put("weekly_cnt", nvl(r.getWeeklyCnt()));
-      metrics.put("weekly_sec", r.getWeeklySec());
-      metrics.put("total_cnt",  nvl(r.getTotalCnt()));
-      metrics.put("total_sec",  r.getTotalSec());
-      byEqp.put(r.getEqpId(), metrics);
+    private Integer dayCnt;
+    private Double  daySec;
+
+    private Integer weeklyCnt;
+    private Double  weeklySec;
+
+    private Integer totalCnt;
+    private Double  totalSec;
+
+    // --- getters / setters ---
+    public LocalDate getDate() { return date; }
+    public void setDate(LocalDate date) { this.date = date; }
+
+    public String getDOfW() { return dOfW; }
+    public void setDOfW(String dOfW) { this.dOfW = dOfW; }
+
+    public String getEqpId() { return eqpId; }
+    public void setEqpId(String eqpId) { this.eqpId = eqpId; }
+
+    public Integer getDailyCnt() { return dailyCnt; }
+    public void setDailyCnt(Integer dailyCnt) { this.dailyCnt = dailyCnt; }
+
+    public Double getDailySec() { return dailySec; }
+    public void setDailySec(Double dailySec) { this.dailySec = dailySec; }
+
+    public Integer getDayCnt() { return dayCnt; }
+    public void setDayCnt(Integer dayCnt) { this.dayCnt = dayCnt; }
+
+    public Double getDaySec() { return daySec; }
+    public void setDaySec(Double daySec) { this.daySec = daySec; }
+
+    public Integer getWeeklyCnt() { return weeklyCnt; }
+    public void setWeeklyCnt(Integer weeklyCnt) { this.weeklyCnt = weeklyCnt; }
+
+    public Double getWeeklySec() { return weeklySec; }
+    public void setWeeklySec(Double weeklySec) { this.weeklySec = weeklySec; }
+
+    public Integer getTotalCnt() { return totalCnt; }
+    public void setTotalCnt(Integer totalCnt) { this.totalCnt = totalCnt; }
+
+    public Double getTotalSec() { return totalSec; }
+    public void setTotalSec(Double totalSec) { this.totalSec = totalSec; }
+}
+🧩 4) Service 인터페이스
+코드 복사
+Java
+package com.example.metrics;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+
+public interface MetricsService {
+    List<com.example.metrics.dto.RowEntity> getRows(LocalDate start, LocalDate end, List<String> eqpIds);
+    List<Map<String, Object>> getPivot(LocalDate start, LocalDate end, List<String> eqpIds);
+}
+🧩 5) ServiceImpl
+코드 복사
+Java
+package com.example.metrics;
+
+import java.time.LocalDate;
+import java.util.*;
+import org.springframework.stereotype.Service;
+import com.example.metrics.dto.RowEntity;
+
+@Service
+public class MetricsServiceImpl implements MetricsService {
+
+    private final MetricsMapper mapper;
+
+    public MetricsServiceImpl(MetricsMapper mapper) {
+        this.mapper = mapper;
     }
 
-    return new ArrayList<>(byDate.values());
-  }
+    /** getRows: 쿼리 결과를 '날짜×장비' 행 그대로 반환 */
+    @Override
+    public List<RowEntity> getRows(LocalDate start, LocalDate end, List<String> eqpIds) {
+        return mapper.selectMetricsRows(start, end, eqpIds);
+    }
 
-  private static int nvl(Integer v) { return v == null ? 0 : v; }
+    /** getPivot: 날짜별로 그룹핑하고 by_eqp에 장비별 메트릭 매핑 (피벗만 수행) */
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getPivot(LocalDate start, LocalDate end, List<String> eqpIds) {
+        List<RowEntity> rows = mapper.selectMetricsRows(start, end, eqpIds);
+        Map<LocalDate, Map<String, Object>> byDate = new LinkedHashMap<>();
+
+        for (RowEntity r : rows) {
+            Map<String, Object> row = byDate.computeIfAbsent(r.getDate(), d -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("date", d);
+                m.put("d_of_w", r.getDOfW());
+                m.put("by_eqp", new TreeMap<String, Map<String, Object>>());
+                return m;
+            });
+
+            Map<String, Map<String, Object>> byEqp = (Map<String, Map<String, Object>>) row.get("by_eqp");
+            Map<String, Object> metrics = new LinkedHashMap<>(8);
+            metrics.put("daily_cnt",  nz(r.getDailyCnt()));
+            metrics.put("daily_sec",  r.getDailySec());
+            metrics.put("day_cnt",    nz(r.getDayCnt()));
+            metrics.put("day_sec",    r.getDaySec());
+            metrics.put("weekly_cnt", nz(r.getWeeklyCnt()));
+            metrics.put("weekly_sec", r.getWeeklySec());
+            metrics.put("total_cnt",  nz(r.getTotalCnt()));
+            metrics.put("total_sec",  r.getTotalSec());
+            byEqp.put(r.getEqpId(), metrics);
+        }
+
+        return new ArrayList<>(byDate.values());
+    }
+
+    private static int nz(Integer v) { return v == null ? 0 : v; }
 }
-컨트롤러는 그대로:
+🧩 6) Controller
 코드 복사
 Java
-@GetMapping("/api/metrics/pivot")
-public Object getPivot() {
-  var rows = mapper.selectMetricsRows(); // 지금 쓰는 쿼리(agg 결과)
-  return PivotBuilder.toPivot(rows);     // 계산 없이 피벗만
+package com.example.metrics;
+
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+public class MetricsController {
+
+    private final MetricsService service;
+
+    public MetricsController(MetricsService service) {
+        this.service = service;
+    }
+
+    @GetMapping("/api/metrics/pivot")
+    public List<Map<String, Object>> getPivot(
+        @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+        @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+        @RequestParam(value = "eqpIds", required = false) String eqpIdsCsv
+    ) {
+        List<String> eqpIds = parseCsv(eqpIdsCsv);
+        return service.getPivot(startDate, endDate, eqpIds);
+    }
+
+    @GetMapping("/api/metrics/rows")
+    public List<com.example.metrics.dto.RowEntity> getRows(
+        @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+        @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+        @RequestParam(value = "eqpIds", required = false) String eqpIdsCsv
+    ) {
+        List<String> eqpIds = parseCsv(eqpIdsCsv);
+        return service.getRows(startDate, endDate, eqpIds);
+    }
+
+    private static List<String> parseCsv(String csv) {
+        if (csv == null || csv.trim().isEmpty()) return null;
+        return Arrays.stream(csv.split(","))
+                     .map(String::trim)
+                     .filter(s -> !s.isEmpty())
+                     .collect(Collectors.toList());
+    }
 }
-Vue(ag-Grid): 동적 컬럼 (valueGetter만)
+🧩 7) Vue 2 (EqpPivotGrid.vue)
 코드 복사
-Js
-// 응답 구조: { date, d_of_w, by_eqp: { eqp01:{daily_cnt,...}, eqp02:{...} } }
-const eqpSet = new Set()
-for (const r of rows) for (const k of Object.keys(r.by_eqp||{})) eqpSet.add(k)
-const eqpList = Array.from(eqpSet).sort()
+Html
+<template>
+    <ag-grid-vue
+        class="ag-theme-alpine"
+        :columnDefs="columnDefs"
+        :rowData="rowData"
+        :defaultColDef="defaultColDef"
+        :domLayout="'autoHeight'"
+    />
+</template>
 
-const metricKeys = [
-  'daily_cnt','daily_sec',
-  'day_cnt','day_sec',
-  'weekly_cnt','weekly_sec',
-  'total_cnt','total_sec'
-]
+<script>
+import axios from 'axios'
+import { AgGridVue } from 'ag-grid-vue'
 
-const columnDefs = [
-  { headerName: 'date', field: 'date', pinned: 'left' },
-  { headerName: 'd_of_w', field: 'd_of_w', pinned: 'left' },
-  ...eqpList.map(eqp => ({
-    headerName: eqp, marryChildren: true,
-    children: metricKeys.map(m => ({
-      headerName: m.replace('_',' '),
-      colId: `${eqp}.${m}`,
-      valueGetter: p => p.data?.by_eqp?.[eqp]?.[m] ?? null
-    }))
-  }))
-]
+export default {
+    name: 'EqpPivotGrid',
+    components: { AgGridVue },
+    data() {
+        return {
+            columnDefs: [],
+            rowData: [],
+            defaultColDef: { sortable: true, resizable: true, filter: true },
+            metricKeys: [
+                'daily_cnt','daily_sec',
+                'day_cnt','day_sec',
+                'weekly_cnt','weekly_sec',
+                'total_cnt','total_sec'
+            ]
+        }
+    },
+    created() {
+        this.fetchData()
+    },
+    methods: {
+        async fetchData() {
+            const params = { startDate: '2025-10-07', endDate: '2025-10-13' }
+            const res = await axios.get('/api/metrics/pivot', { params })
+            const rows = res.data
+            this.rowData = rows
+
+            const eqpSet = new Set()
+            for (const r of rows) {
+                const byEqp = r.by_eqp || {}
+                for (const k of Object.keys(byEqp)) {
+                    eqpSet.add(k)
+                }
+            }
+            const eqpList = Array.from(eqpSet).sort()
+            this.columnDefs = this.buildColumnDefs(eqpList)
+        },
+
+        buildColumnDefs(eqpList) {
+            const cols = []
+            cols.push({ headerName: 'date', field: 'date', pinned: 'left' })
+            cols.push({ headerName: 'd_of_w', field: 'd_of_w', pinned: 'left' })
+
+            for (const eqp of eqpList) {
+                const children = []
+                for (const m of this.metricKeys) {
+                    children.push({
+                        headerName: m.replace('_', ' '),
+                        colId: `${eqp}.${m}`,
+                        valueGetter: p => p.data?.by_eqp?.[eqp]?.[m] ?? null,
+                        valueFormatter: p => {
+                            const v = p.value
+                            if (v == null) return ''
+                            if (m.endsWith('_sec')) {
+                                return Number(v).toLocaleString(undefined, { maximumFractionDigits: 3 })
+                            }
+                            return v
+                        },
+                        type: m.endsWith('_sec') ? 'numericColumn' : undefined
+                    })
+                }
+                cols.push({ headerName: eqp, marryChildren: true, children })
+            }
+
+            return cols
+        }
+    }
+}
+</script>
+✅ 모든 파일이 4칸 들여쓰기 일관
+✅ SQL 반올림 완료, Java는 그룹핑만
+✅ Vue는 동적 컬럼 자동 확장
+필요하시면 이 구조를 바로 IntelliJ나 VSCode 프로젝트에 넣을 수 있게 src/main/java + src/main/resources/mapper + frontend/src/components 폴더 구조 형태로 정리해드릴 수도 있어요. 원하시나요?
