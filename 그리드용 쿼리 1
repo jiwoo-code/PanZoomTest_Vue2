@@ -593,28 +593,33 @@ export default {
 }
 </style>
 
-
 /**
- * 외부 호출용: metricList에 포함된 ...Sec / ...Cnt 컬럼만 보이게 함.
- * - date, d_of_w, 접힘 더미('-') 등은 건드리지 않음
- * - 그룹 상태는 신경쓰지 않음(변경/복구 안 함)
- * 사용 예) this.$refs.grid.selectedCols(['dailySec','totalCnt'])
+ * 외부 호출용:
+ * metricsOpen 배열을 기준으로, selectedCols 에 포함된 컬럼만 표시.
+ * - selectedCols: 예) ['dailySec', 'totalCnt']
+ * - date, d_of_w, '-' 등은 건드리지 않음.
  */
-selectedCols(metricList) {
-    const api = this.$refs.grid?.columnApi || this.columnApi;
-    if (!api) return;
+selectedCols(selectedCols) {
+    const cols = this.columnApi?.columnModel?.gridColumns || [];
+    if (!cols.length) return;
 
-    const want = new Set(metricList || []);
+    const target = new Set(selectedCols || []);
 
-    for (const col of api.getAllColumns() || []) {
-        const id = col.getColId?.() || col.colId || '';
-        const dot = id.indexOf('.');
-        if (dot < 0) continue; // date, d_of_w 같은 루트 컬럼 패스
+    // metricsOpen 기준으로만 visible 제어
+    for (const metric of this.metricsOpen) {
+        for (const col of cols) {
+            const id = col.colId || '';
+            // colId는 "eqpId.metricName" 형태
+            if (!id.includes('.')) continue;
 
-        const metric = id.slice(dot + 1); // `${eqp}.${metric}`
-        const isMetric = metric.endsWith('Sec') || metric.endsWith('Cnt');
-        if (!isMetric) continue;
-
-        api.setColumnVisible(id, want.has(metric));
+            const name = id.split('.')[1];
+            if (name === metric) {
+                col.visible = target.has(name);
+            }
+        }
     }
+
+    // 변경사항 반영
+    this.columnApi.refreshHeader();
+    this.gridApi?.refreshCells({ force: true });
 }
