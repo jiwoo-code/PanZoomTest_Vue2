@@ -594,12 +594,10 @@ export default {
 </style>
 
 
-
-
 /**
- * 외부 호출용: 전달된 메트릭(…Sec / …Cnt)만 표시.
- * - date, d_of_w, 접힘 더미('-')는 건드리지 않음
- * - 그룹(open/close) 상태 유지
+ * 외부 호출용: metricList에 포함된 ...Sec / ...Cnt 컬럼만 보이게 함.
+ * - date, d_of_w, 접힘 더미('-') 등은 건드리지 않음
+ * - 그룹 상태는 신경쓰지 않음(변경/복구 안 함)
  * 사용 예) this.$refs.grid.selectedCols(['dailySec','totalCnt'])
  */
 selectedCols(metricList) {
@@ -607,20 +605,16 @@ selectedCols(metricList) {
     if (!api) return;
 
     const want = new Set(metricList || []);
-    const prevState = api.getColumnGroupState?.() || [];
 
     for (const col of api.getAllColumns() || []) {
         const id = col.getColId?.() || col.colId || '';
         const dot = id.indexOf('.');
-        if (dot < 0) continue; // date, d_of_w 등 스킵
+        if (dot < 0) continue; // date, d_of_w 같은 루트 컬럼 패스
 
-        const metric = id.slice(dot + 1);
-        if (!(metric.endsWith('Sec') || metric.endsWith('Cnt'))) continue;
+        const metric = id.slice(dot + 1); // `${eqp}.${metric}`
+        const isMetric = metric.endsWith('Sec') || metric.endsWith('Cnt');
+        if (!isMetric) continue;
 
-        // ✅ 표시/숨김만 조정 (다른 건 그대로)
         api.setColumnVisible(id, want.has(metric));
     }
-
-    // 그룹 접힘/펼침 상태 복구
-    if (prevState.length) api.setColumnGroupState(prevState);
 }
